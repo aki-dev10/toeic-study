@@ -114,8 +114,9 @@ CREATE TABLE IF NOT EXISTS senses(id INTEGER PRIMARY KEY, word_id INTEGER NOT NU
 CREATE TABLE IF NOT EXISTS sources(id INTEGER PRIMARY KEY, word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE, sense_id INTEGER, qid TEXT, material TEXT, part INTEGER, number TEXT, surface TEXT, sentence TEXT, created_at TEXT, UNIQUE(word_id, qid));
 CREATE TABLE IF NOT EXISTS word_reviews(id INTEGER PRIMARY KEY, word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE, mode TEXT, grade INTEGER, at TEXT);
 CREATE TABLE IF NOT EXISTS email_log(id INTEGER PRIMARY KEY, created_at TEXT, period_from TEXT, period_to TEXT, recipient TEXT, subject TEXT, word_ids TEXT, status TEXT, error TEXT);
-CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`;
-const USER_TABLES = ['attempts', 'qstate', 'exams', 'words', 'senses', 'sources', 'word_reviews', 'email_log', 'settings'];
+CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS deleted_words(key TEXT PRIMARY KEY, at TEXT);`;
+const USER_TABLES = ['attempts', 'qstate', 'exams', 'words', 'senses', 'sources', 'word_reviews', 'email_log', 'settings', 'deleted_words'];
 
 async function userDb() {
   if (db) return db;
@@ -123,12 +124,18 @@ async function userDb() {
   const saved = await idbGet('user.db');
   db = saved ? new S.Database(new Uint8Array(saved)) : new S.Database();
   db.exec('PRAGMA foreign_keys=ON;' + SCHEMA);
+  try { db.exec('ALTER TABLE qstate ADD COLUMN updated_at TEXT'); } catch (e) { /* 追加済み */ }
   try { navigator.storage?.persist?.(); } catch (e) { /* */ }
   return db;
 }
 let saveT = null;
-function save() { clearTimeout(saveT); saveT = setTimeout(() => idbPut('user.db', db.export()), 200); }
-document.addEventListener('visibilitychange', () => { if (document.hidden && db && saveT) { clearTimeout(saveT); idbPut('user.db', db.export()); } });
+function save() { clearTimeout(saveT); saveT = setTimeout(() => { saveT = null; idbPut('user.db', db.export()); }, 200); schedulePush(); }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (db && saveT) { clearTimeout(saveT); saveT = null; idbPut('user.db', db.export()); }
+    if (pushT) { clearTimeout(pushT); pushT = null; push().catch(() => {}); }
+  } else if (db) pullAndNotify();
+});
 
 const nul = (a) => a.map((v) => (v === undefined ? null : typeof v === 'boolean' ? (v ? 1 : 0) : v));
 function qd(d, sql, args = []) { const st = d.prepare(sql); st.bind(nul(args)); const out = []; while (st.step()) out.push(st.getAsObject()); st.free(); return out; }
@@ -169,7 +176,7 @@ function questionStats() {
 }
 function setQstate(d) {
   x('INSERT OR IGNORE INTO qstate(qid) VALUES(?)', [d.qid]);
-  for (const k of ['bookmark', 'review', 'note']) if (k in d) x(`UPDATE qstate SET ${k}=? WHERE qid=?`, [d[k], d.qid]);
+  for (const k of ['bookmark', 'review', 'note']) if (k in d) x(`UPDATE qstate SET ${k}=?, updated_at=? WHERE qid=?`, [d[k], now(), d.qid]);
   return q('SELECT * FROM qstate WHERE qid=?', [d.qid])[0];
 }
 function exams() {
@@ -448,6 +455,136 @@ async function lookup(text) {
   return result;
 }
 
+// ---------- 端末間の同期（GitHub の非公開リポジトリ） ----------
+// 各端末は自分の全データを devices/<端末ID>.json に保存し、他の端末のファイルを読み込んで統合する。
+// 統合: 解答・模試・復習履歴は足し合わせ、単語は見出し語でまとめ、状態（復習の進み具合・ブックマーク等）は新しい方を採用。
+let syncCfg = null, ownSha = null, pushT = null, pushing = false;
+export const syncState = { enabled: false, last: null, error: null };
+const b64utf8 = (s) => { const u = enc.encode(s); let bin = ''; for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(bin); };
+function deviceId() {
+  let d = localStorage.getItem('toeic.device');
+  if (!d) {
+    const kind = /iPad/.test(navigator.userAgent) ? 'ipad' : /iPhone/.test(navigator.userAgent) ? 'iphone' : /Android/.test(navigator.userAgent) ? 'android' : 'pc';
+    d = kind + '-' + crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
+    localStorage.setItem('toeic.device', d);
+  }
+  return d;
+}
+async function loadSyncCfg() {
+  if (syncCfg !== null) return syncCfg;
+  try { syncCfg = JSON.parse(new TextDecoder().decode(await fetchDec('sync.json'))); } catch (e) { syncCfg = false; }
+  syncState.enabled = !!syncCfg;
+  return syncCfg;
+}
+const gh = (path, init = {}) => fetch(`https://api.github.com/repos/${syncCfg.repo}/contents/${path}`,
+  { ...init, cache: 'no-store', headers: { Authorization: `Bearer ${syncCfg.token}`, Accept: 'application/vnd.github+json', ...(init.headers || {}) } });
+
+export function merge(data) {
+  const T = data.tables || {};
+  tx(() => {
+    for (const d of T.deleted_words || []) {
+      const l = q('SELECT at FROM deleted_words WHERE key=?', [d.key])[0];
+      if (!l || d.at > l.at) x('INSERT OR REPLACE INTO deleted_words(key,at) VALUES(?,?)', [d.key, d.at]);
+    }
+    for (const a of T.attempts || []) {
+      if (!q("SELECT 1 x FROM attempts WHERE qid=? AND at=? AND coalesce(session,'')=coalesce(?,'') LIMIT 1", [a.qid, a.at, a.session]).length)
+        x('INSERT INTO attempts(qid,choice,correct,ms,mode,session,at) VALUES(?,?,?,?,?,?,?)', [a.qid, a.choice, a.correct, a.ms, a.mode, a.session, a.at]);
+    }
+    for (const s of T.qstate || []) {
+      const l = q('SELECT updated_at FROM qstate WHERE qid=?', [s.qid])[0];
+      if (!l || (s.updated_at || '') > (l.updated_at || ''))
+        x('INSERT OR REPLACE INTO qstate(qid,bookmark,review,note,updated_at) VALUES(?,?,?,?,?)', [s.qid, s.bookmark, s.review, s.note, s.updated_at || null]);
+    }
+    for (const e of T.exams || []) {
+      x('INSERT OR IGNORE INTO exams(id,title,started,finished,limit_sec,qids,answers,times,score,total) VALUES(?,?,?,?,?,?,?,?,?,?)',
+        [e.id, e.title, e.started, e.finished, e.limit_sec, e.qids, e.answers, e.times, e.score, e.total]);
+    }
+    const wmap = {}, smap = {};
+    for (const w of T.words || []) {
+      const tomb = q('SELECT at FROM deleted_words WHERE key=?', [w.key])[0];
+      if (tomb && w.created_at <= tomb.at) continue;
+      const l = q('SELECT * FROM words WHERE key=?', [w.key])[0];
+      if (!l) {
+        wmap[w.id] = x(`INSERT INTO words(text,key,lemma,is_phrase,phonetic,created_at,updated_at,reps,lapses,ease,interval,due_at,last_reviewed_at,level,email_sent_at,email_exclude,memo)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [w.text, w.key, w.lemma, w.is_phrase, w.phonetic, w.created_at, w.updated_at, w.reps, w.lapses, w.ease, w.interval, w.due_at, w.last_reviewed_at, w.level, w.email_sent_at, w.email_exclude, w.memo]);
+        continue;
+      }
+      wmap[w.id] = l.id;
+      if ((w.last_reviewed_at || '') > (l.last_reviewed_at || ''))
+        x('UPDATE words SET reps=?, lapses=?, ease=?, interval=?, due_at=?, last_reviewed_at=?, level=? WHERE id=?', [w.reps, w.lapses, w.ease, w.interval, w.due_at, w.last_reviewed_at, w.level, l.id]);
+      if ((w.updated_at || '') > (l.updated_at || ''))
+        x('UPDATE words SET phonetic=?, memo=?, email_exclude=?, updated_at=? WHERE id=?', [w.phonetic, w.memo, w.email_exclude, w.updated_at, l.id]);
+      if (w.created_at < l.created_at) x('UPDATE words SET created_at=? WHERE id=?', [w.created_at, l.id]);
+    }
+    for (const s of T.senses || []) {
+      const wid = wmap[s.word_id]; if (wid == null) continue;
+      x('INSERT OR IGNORE INTO senses(word_id,pos,meaning,origin,created_at) VALUES(?,?,?,?,?)', [wid, s.pos, s.meaning, s.origin, s.created_at]);
+      smap[s.id] = q('SELECT id FROM senses WHERE word_id=? AND pos=? AND meaning=?', [wid, s.pos, s.meaning])[0]?.id;
+    }
+    for (const s of T.sources || []) {
+      const wid = wmap[s.word_id]; if (wid == null) continue;
+      x('INSERT OR IGNORE INTO sources(word_id,sense_id,qid,material,part,number,surface,sentence,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
+        [wid, smap[s.sense_id] ?? null, s.qid, s.material, s.part, s.number, s.surface, s.sentence, s.created_at]);
+    }
+    for (const r of T.word_reviews || []) {
+      const wid = wmap[r.word_id]; if (wid == null) continue;
+      if (!q('SELECT 1 x FROM word_reviews WHERE word_id=? AND at=? AND mode IS ? AND grade=? LIMIT 1', [wid, r.at, r.mode, r.grade]).length)
+        x('INSERT INTO word_reviews(word_id,mode,grade,at) VALUES(?,?,?,?)', [wid, r.mode, r.grade, r.at]);
+    }
+    x('DELETE FROM words WHERE id IN (SELECT w.id FROM words w JOIN deleted_words d ON d.key=w.key AND w.created_at<=d.at)');
+  });
+}
+
+// 他の端末のデータを取り込む。戻り値: 取り込んだ端末数
+export async function pull() {
+  if (!(await loadSyncCfg())) return 0;
+  await userDb();
+  try {
+    const r = await gh('devices');
+    if (r.status === 404) { syncState.last = now(); schedulePush(0); return 0; }
+    if (!r.ok) throw new Error('GitHub ' + r.status);
+    let merged = 0;
+    for (const f of await r.json()) {
+      if (!f.name.endsWith('.json')) continue;
+      if (f.name === deviceId() + '.json') { ownSha = f.sha; continue; }
+      if (localStorage.getItem('toeic.sync.' + f.name) === f.sha) continue; // 前回から変化なし
+      const raw = await gh('devices/' + f.name, { headers: { Accept: 'application/vnd.github.raw' } });
+      if (!raw.ok) continue;
+      merge(await raw.json());
+      localStorage.setItem('toeic.sync.' + f.name, f.sha);
+      merged++;
+    }
+    syncState.last = now(); syncState.error = null;
+    if (!ownSha) schedulePush(0);
+    return merged;
+  } catch (e) { syncState.error = e.message; return 0; }
+}
+async function pullAndNotify() {
+  if (await pull()) window.dispatchEvent(new Event('toeic-synced'));
+}
+
+async function push() {
+  if (!(await loadSyncCfg())) return;
+  if (pushing) return schedulePush(2000); // 送信中の変更は少し後で送る
+  pushing = true;
+  try {
+    const body = JSON.stringify(backup());
+    if (body === push.lastBody) return;
+    const path = 'devices/' + deviceId() + '.json';
+    for (let i = 0; i < 2; i++) {
+      const r = await gh(path, { method: 'PUT', body: JSON.stringify({ message: 'sync ' + deviceId(), content: b64utf8(body), ...(ownSha ? { sha: ownSha } : {}) }) });
+      if (r.ok) { ownSha = (await r.json()).content.sha; push.lastBody = body; syncState.last = now(); syncState.error = null; return; }
+      if (r.status === 409 || r.status === 422) { const g = await gh(path); ownSha = g.ok ? (await g.json()).sha : null; continue; }
+      throw new Error('GitHub ' + r.status);
+    }
+  } catch (e) { syncState.error = e.message; } finally { pushing = false; }
+}
+function schedulePush(ms = 3000) {
+  if (syncCfg === false) return;
+  clearTimeout(pushT);
+  pushT = setTimeout(() => { pushT = null; push(); }, ms);
+}
+
 // ---------- /api/* の代わり ----------
 export async function localApi(path, opts = {}) {
   await userDb();
@@ -478,7 +615,11 @@ export async function localApi(path, opts = {}) {
     if (method === 'POST' && arg && parts[2] === 'review') return reviewWord(+arg, body.mode, +body.grade);
     if (method === 'POST') return registerWord(body);
     if (method === 'PUT' && arg) return updateWord(+arg, body);
-    if (method === 'DELETE' && arg) { x('DELETE FROM words WHERE id=?', [+arg]); return { ok: true }; }
+    if (method === 'DELETE' && arg) {
+      const w = q('SELECT key FROM words WHERE id=?', [+arg])[0];
+      if (w) x('INSERT OR REPLACE INTO deleted_words(key,at) VALUES(?,?)', [w.key, now()]); // 他の端末でも削除されるように
+      x('DELETE FROM words WHERE id=?', [+arg]); return { ok: true };
+    }
   }
   if (name === 'settings') {
     if (method === 'POST') { delete body.aiKey; return { settings: setSettings(body), ai: false }; }
@@ -487,6 +628,10 @@ export async function localApi(path, opts = {}) {
   if (name === 'backup') return backup();
   if (name === 'restore') return { restored: restore(body.data, body.mode || 'replace') };
   if (name === 'email' && arg === 'preview') return emailDigest(+(qs.days || 7));
+  if (name === 'sync') {
+    if (method === 'POST') { const n = await pull(); clearTimeout(pushT); pushT = null; await push(); return { ...syncState, merged: n }; }
+    await loadSyncCfg(); return { ...syncState };
+  }
   if (name === 'ai') throw new Error('AI 補足は Web 版では使えません（PC 版で API キーを設定すると使えます）');
   throw new Error('not found');
 }

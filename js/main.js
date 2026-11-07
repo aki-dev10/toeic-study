@@ -1,5 +1,5 @@
 import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js';
-import { STATIC, unlock, hydrateImages } from './static.js';
+import { STATIC, unlock, hydrateImages, pull } from './static.js';
 import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js';
 import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js';
 
@@ -636,6 +636,11 @@ async function settings(root) {
       <button class="btn" id="emPreview">今週のメール内容をプレビュー</button>
       <pre id="emBox" class="mail" hidden></pre>
     </section>
+    ${STATIC ? `<section class="card"><h2>端末間の同期</h2>
+      <p class="small" id="syncInfo">確認中…</p>
+      <div class="row gap"><button class="btn" id="syncNow">今すぐ同期</button></div>
+      <p class="small muted">解いた問題・単語帳・復習の記録を GitHub の非公開リポジトリ経由で PC・iPhone・iPad と自動で共有します（起動時・アプリに戻った時に取り込み、変更の数秒後に保存）。</p>
+    </section>` : ''}
     <section class="card"><h2>データ</h2>
       <div class="row gap"><button class="btn" id="dlBackup">バックアップをダウンロード</button>
         <label class="btn">バックアップから復元<input type="file" id="restore" accept=".json" hidden></label></div>
@@ -648,6 +653,12 @@ async function settings(root) {
   root.onclick = async (e) => {
     const id = e.target.closest('button')?.id;
     if (id === 'testVoice') { readLocal(); speak('The manager asked all employees to submit their reports by Friday.'); }
+    if (id === 'syncNow') {
+      e.target.disabled = true; $('#syncInfo', root).textContent = '同期中…';
+      const st = await api('sync', { body: {} });
+      if (st.merged) { await loadAll(); }
+      showSync(st); e.target.disabled = false;
+    }
     if (id === 'dlBackup') {
       const blob = new Blob([JSON.stringify(await api('backup'))], { type: 'application/json' });
       const a = document.createElement('a');
@@ -667,6 +678,13 @@ async function settings(root) {
       toast('保存しました'); settings(root);
     }
   };
+  const showSync = (st) => {
+    const el = $('#syncInfo', root); if (!el) return;
+    el.innerHTML = !st.enabled ? '<span class="warn">未設定です（PC で tools/set_sync_token.py を実行して publish_web.bat）</span>'
+      : st.error ? `<span class="ng">同期できませんでした: ${esc(st.error)}</span>`
+      : `同期済み ・ 最終 ${esc(fmtDate(st.last) || '-')}${st.merged ? `（${st.merged}台分を取り込み）` : ''}`;
+  };
+  if (STATIC) api('sync').then(showSync);
   const readLocal = () => {
     L.voice = $('#voice', root).value; L.rate = +$('#rate2', root).value; L.pauseMs = +$('#pause', root).value || 700;
     L.preferBook = $('#preferBook', root).checked; L.autoPlay = $('#autoPlay', root).checked; L.oneClick = $('#oneClick', root).checked; L.skipCorrect = $('#skipCorrect', root).checked; saveLocal();
@@ -696,4 +714,10 @@ $('#themeBtn').onclick = () => {
 };
 initPopup();
 window.addEventListener('hashchange', route);
-(STATIC ? unlock(app) : Promise.resolve()).then(loadAll).then(route).catch((e) => { app.innerHTML = `<div class="card">読み込みに失敗しました: ${esc(e.message)}${STATIC ? '' : '<br>サーバー（start.bat）が起動しているか確認してください。'}</div>`; });
+// Web 版: 他の端末で増えたデータを取り込んでから表示（通信が遅いときは 6 秒で先に進む）。表示中に届いたら画面を更新
+if (STATIC) window.addEventListener('toeic-synced', async () => {
+  await loadAll();
+  if (!/^#\/(session|exam)/.test(location.hash)) route();
+  toast('他の端末の学習データを取り込みました');
+});
+(STATIC ? unlock(app).then(() => Promise.race([pull(), new Promise((r) => setTimeout(r, 6000))])) : Promise.resolve()).then(loadAll).then(route).catch((e) => { app.innerHTML = `<div class="card">読み込みに失敗しました: ${esc(e.message)}${STATIC ? '' : '<br>サーバー（start.bat）が起動しているか確認してください。'}</div>`; });
