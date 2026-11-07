@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#1f6feb">
+<title>TOEIC Study</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f6feb'/><text x='16' y='22' font-size='15' font-family='Arial' font-weight='700' fill='white' text-anchor='middle'>T</text></svg>">
+<script>
+  try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#/">TOEIC Study</a>
+  <nav class="nav" id="nav">
+    <a href="#/" data-nav="home">ホーム</a>
+    <a href="#/practice" data-nav="practice">演習</a>
+    <a href="#/exam" data-nav="exam">模試</a>
+    <a href="#/review" data-nav="review">苦手復習</a>
+    <a href="#/listen" data-nav="listen">リスニング</a>
+    <a href="#/words" data-nav="words">単語帳</a>
+    <a href="#/settings" data-nav="settings">設定</a>
+  </nav>
+  <button class="icon-btn" id="themeBtn" title="ダークモード切替" aria-label="ダークモード切替">◐</button>
+</header>
+<main id="app"><div class="loading">読み込み中…</div></main>
+<nav class="tabbar" id="tabbar">
+  <a href="#/" data-nav="home"><span>⌂</span>ホーム</a>
+  <a href="#/practice" data-nav="practice"><span>✎</span>演習</a>
+  <a href="#/review" data-nav="review"><span>↻</span>復習</a>
+  <a href="#/words" data-nav="words"><span>Aa</span>単語</a>
+  <a href="#/more" data-nav="more"><span>…</span>その他</a>
+</nav>
+<div id="popup" class="popup" hidden></div>
+<div id="toast" class="toast" hidden></div>
+<script>window.TOEIC_STATIC = true;</script>
+<script src="vendor/sql-wasm.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
