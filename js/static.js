@@ -1,7 +1,7 @@
 // GitHub Pages 版（サーバーなし）。
 //  - 教材データ（問題・解説・画像・音声）は暗号化して置き、パスワードから作った鍵でブラウザ内で復号する
-//  - 学習データは server/db.py と同じ SQL を sql.js（ブラウザ内 SQLite）で実行し、端末の IndexedDB に保存
-//  - 辞書は server/dictionary.py の移植（dict.sqlite は CC0/パブリックドメインのデータなので暗号化しない）
+//  - 学習データは SQL を sql.js（ブラウザ内 SQLite）で実行し、端末の IndexedDB に保存
+//  - 辞書は dict.sqlite を引く（dict.sqlite は CC0/パブリックドメインのデータなので暗号化しない）
 export const STATIC = !!window.TOEIC_STATIC;
 
 const enc = new TextEncoder();
@@ -147,7 +147,7 @@ const pad = (n) => String(n).padStart(2, '0');
 const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 const now = () => iso(new Date());
 
-// ---------- server/db.py の移植 ----------
+// ---------- 学習データ ----------
 const DEFAULT_SETTINGS = { email: { enabled: false, recipient: 'ah0864@sel.co.jp', weekday: 6, hour: 20, include: ['meaning', 'pos', 'example', 'source'] },
   ai: { model: 'claude-opus-5-5', effort: 'low' }, exam: { count: 30, minutes: 10 } };
 function getSettings() {
@@ -339,7 +339,7 @@ function emailDigest(days = 7) {
   return { subject, recipient: getSettings().email.recipient, from: iso(start), to: iso(end), count: words.length, wordIds: words.map((w) => w.id), body: lines.join('\n') };
 }
 
-// ---------- server/dictionary.py の移植 ----------
+// ---------- 辞書 ----------
 const POS_JA = { n: '名詞', v: '動詞', a: '形容詞', r: '副詞' };
 const CLOSED = {
   前置詞: 'about above across after against along among around as at before behind below beneath beside besides between beyond by despite down during except for from in inside into like near of off on onto opposite out outside over past per regarding since through throughout till to toward towards under underneath unlike until up upon via with within without',
