@@ -60,7 +60,7 @@ async function encName(path) {
 }
 
 export async function fetchDec(path) {
-  const r = await fetch(await encName(path));
+  const r = await fetch(await encName(path), { cache: 'no-cache' });  // 作り直した音声などを確実に反映
   if (!r.ok) throw new Error('not found: ' + path);
   const buf = new Uint8Array(await r.arrayBuffer());
   return crypto.subtle.decrypt({ name: 'AES-GCM', iv: buf.slice(0, 12) }, aesKey, buf.slice(12));
