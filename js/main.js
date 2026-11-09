@@ -1,7 +1,7 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js';
-import { STATIC, unlock, hydrateImages, pull } from './static.js';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=5bea812d0a';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=5bea812d0a';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=5bea812d0a';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=5bea812d0a';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作

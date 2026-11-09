@@ -2,8 +2,8 @@
 //  - speakSegments: [{text}|{pause:ms}] を順に読み上げ（空欄は無音区間）
 //  - playFile: 教材音声などの音声ファイル
 //  - playSequence: 上記を組み合わせた再生リスト（Part 2 の「問い→選択肢A〜C」等を想定）
-import { store, BLANK_RE } from './util.js';
-import { resolveUrl } from './static.js';
+import { store, BLANK_RE } from './util.js?v=5bea812d0a';
+import { resolveUrl } from './static.js?v=5bea812d0a';
 
 const synth = window.speechSynthesis;
 let token = 0;           // 再生世代。stop() で無効化
