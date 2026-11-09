@@ -306,7 +306,7 @@ function renderQuestion(root, s, opt = {}) {
     const id = e.target.closest('button')?.id;
     if (id === 'play') play();
     if (id === 'submit') submit();
-    if (id === 'next') go(1);
+    if (id === 'next' || id === 'next2' || id === 'next3') go(1);
     if (id === 'prev') go(-1);
     if (id === 'bm') toggleBookmark(q, root);
   };
@@ -320,7 +320,7 @@ function renderQuestion(root, s, opt = {}) {
     else if (e.key === 'b' || e.key === 'B') toggleBookmark(q, root);
   };
   paint();
-  if (s.results[q.id]) renderExplanation($('#explain', root), q, s.results[q.id]);
+  if (s.results[q.id]) renderExplanation($('#explain', root), q, s.results[q.id], opt.single ? '' : s.i === s.ids.length - 1 ? '終了' : '次の問題 →');
   if (!s.results[q.id]) autoPlay();
   else stop();
   // 解答直後は解説欄が画面の中心に来るよう自動スクロール
@@ -340,7 +340,9 @@ async function toggleBookmark(q, root) {
   toast(cur ? 'ブックマークを外しました' : 'ブックマークしました');
 }
 
-function renderExplanation(el, q, res) {
+function renderExplanation(el, q, res, nextLabel = '') {
+  // 解説を読んだ位置から上に戻らずに次へ進めるボタン（id は renderQuestion 側で処理）
+  const nextBtn = (id) => (nextLabel ? `<button class="btn primary sm next-inline" id="${id}">${nextLabel}</button>` : '');
   const st = store.stats[q.id] || {};
   const v = q.verify || {};
   el.innerHTML = `
@@ -355,6 +357,7 @@ function renderExplanation(el, q, res) {
         <span class="small muted">${q.audio && store.audio[q.audio.split('/')[0]] && store.local.preferBook ? '教材音声' : '合成音声'}</span>
         <button class="btn ghost sm" id="shadow">シャドーイング（3回）</button>
         <button class="btn ghost sm" id="tts">合成音声で再生</button>
+        ${nextBtn('next2')}
       </div>
       ${q.translation ? `<h3>日本語訳</h3><p class="ja">${esc(q.translation)}</p>` : ''}
       <h3>解説 <span class="tag">教材</span> <button class="btn ghost sm" id="orig">原本の画像</button></h3>
@@ -366,6 +369,7 @@ function renderExplanation(el, q, res) {
       <div class="small muted foot">出典: ${esc(questionLabel(q))}（本体p.${q.page?.a ?? '-'}）${v.status && v.status !== 'verified' ? ` ・ <span class="warn">データ検証: ${esc(v.status)}${v.issues?.length ? '（' + esc(v.issues.join('、')) + '）' : ''}</span>` : ''}
         ・ <label><input type="checkbox" id="rv" ${st.review ? 'checked' : ''}> 要復習に追加</label></div>
       <p class="small muted">※解説・訳はスキャン画像のOCRです。誤字があれば「原本の画像」で確認できます。</p>
+      ${nextLabel ? `<div class="next-bottom">${nextBtn('next3')}</div>` : ''}
     </section>`;
   el.onclick = async (e) => {
     const id = e.target.closest('button')?.id;

@@ -133,6 +133,8 @@ label.check { display: block; margin: 8px 0; }
 .audio-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0 14px; }
 #explain { scroll-margin-top: 64px; }
 .audio-row select { min-height: 32px; padding: 2px 6px; }
+.next-inline { margin-left: auto; }
+.next-bottom { display: flex; justify-content: flex-end; margin-top: 12px; }
 @media (max-width: 600px) { .qcard #playLabel, .audio-row .nt { display: none; } .audio-row { gap: 6px; } .audio-row .qnav { padding-left: 14px; padding-right: 14px; } }
 .choices { display: grid; gap: 8px; margin-bottom: 14px; }
 .choice { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); font: 18px var(--en); cursor: pointer; min-height: 52px; }
