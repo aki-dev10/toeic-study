@@ -1,7 +1,7 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=57f31468c5';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=57f31468c5';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=57f31468c5';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=57f31468c5';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=676507bb24';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=676507bb24';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=676507bb24';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=676507bb24';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -350,7 +350,7 @@ function askChatGPT(q, res) {
     '・正解の根拠（文法・語法のポイント）\n・私の選んだ選択肢がなぜ誤りか（正解なら他の選択肢が誤りの理由）\n・同じパターンを見抜くコツと、似た例文を1つ\n\n' +
     `問題: ${q.text.replace(/-{3,}|_{3,}|—+/, '-------')}\n${choices}\n\n私の解答: ${mine}\n正解: (${LETTERS[q.answer]}) ${q.choices[q.answer]}`;
   navigator.clipboard?.writeText(prompt).catch(() => {}); // 自動送信されなかったときは貼り付けで使える
-  window.open('https://chatgpt.com/?q=' + encodeURIComponent(prompt), 'chatgpt');
+  window.open('https://chatgpt.com/?toeic=1&q=' + encodeURIComponent(prompt), 'chatgpt');
 }
 
 function renderExplanation(el, q, res, nextLabel = '') {
