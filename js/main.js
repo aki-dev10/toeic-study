@@ -1,7 +1,7 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=676507bb24';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=676507bb24';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=676507bb24';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=676507bb24';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=2fee19d977';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=2fee19d977';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=2fee19d977';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=2fee19d977';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -78,7 +78,8 @@ const weakScore = (q) => { const s = store.stats[q.id] || {}; return (s.n ? (s.n
 function startSession(qs, mode = 'practice', title = '演習') {
   if (!qs.length) return toast('条件に合う問題がありません');
   sessionStorage.setItem('session', JSON.stringify({ ids: qs.map((q) => q.id), i: 0, mode, title, id: Date.now().toString(36), results: {} }));
-  location.hash = mode === 'listen' ? '#/listen/run' : '#/session';
+  const to = mode === 'listen' ? '#/listen/run' : '#/session';
+  if (location.hash === to) route(); else location.hash = to; // 終了画面は同じ #/session なので hashchange が起きない
 }
 
 function filterForm(f, { withCount = true } = {}) {
