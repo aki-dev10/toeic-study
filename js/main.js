@@ -1,7 +1,7 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=5bea812d0a';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=5bea812d0a';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=5bea812d0a';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=5bea812d0a';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=57f31468c5';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=57f31468c5';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=57f31468c5';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=57f31468c5';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -32,6 +32,8 @@ async function route() {
 }
 
 document.addEventListener('keydown', (e) => {
+  // Alt+C: 解説画面なら ChatGPT に問題を渡して解説してもらう
+  if (e.altKey && !e.ctrlKey && e.code === 'KeyC' && document.getElementById('gpt')) { e.preventDefault(); return document.getElementById('gpt').click(); }
   if (e.target.matches('input, textarea, select') || e.ctrlKey || e.metaKey || e.altKey) return;
   if (popupOpen() && e.key !== 'Escape') return;
   if (keyHandler) keyHandler(e);
@@ -340,6 +342,17 @@ async function toggleBookmark(q, root) {
   toast(cur ? 'ブックマークを外しました' : 'ブックマークしました');
 }
 
+// ChatGPT に問題・選択肢・自分の解答を渡す。同じ名前のタブ（chatgpt）を使い回し、毎回新しい会話で自動送信される
+function askChatGPT(q, res) {
+  const choices = q.choices.map((c, i) => `(${LETTERS[i]}) ${c}`).join('\n');
+  const mine = res.choice != null ? `(${LETTERS[res.choice]}) ${q.choices[res.choice]}` : '未解答';
+  const prompt = 'TOEIC Part 5 の問題です。日本語で解説してください。\n' +
+    '・正解の根拠（文法・語法のポイント）\n・私の選んだ選択肢がなぜ誤りか（正解なら他の選択肢が誤りの理由）\n・同じパターンを見抜くコツと、似た例文を1つ\n\n' +
+    `問題: ${q.text.replace(/-{3,}|_{3,}|—+/, '-------')}\n${choices}\n\n私の解答: ${mine}\n正解: (${LETTERS[q.answer]}) ${q.choices[q.answer]}`;
+  navigator.clipboard?.writeText(prompt).catch(() => {}); // 自動送信されなかったときは貼り付けで使える
+  window.open('https://chatgpt.com/?q=' + encodeURIComponent(prompt), 'chatgpt');
+}
+
 function renderExplanation(el, q, res, nextLabel = '') {
   // 解説を読んだ位置から上に戻らずに次へ進めるボタン（id は renderQuestion 側で処理）
   const nextBtn = (id) => (nextLabel ? `<button class="btn primary sm next-inline" id="${id}">${nextLabel}</button>` : '');
@@ -360,7 +373,7 @@ function renderExplanation(el, q, res, nextLabel = '') {
         ${nextBtn('next2')}
       </div>
       ${q.translation ? `<h3>日本語訳</h3><p class="ja">${esc(q.translation)}</p>` : ''}
-      <h3>解説 <span class="tag">教材</span> <button class="btn ghost sm" id="orig">原本の画像</button></h3>
+      <h3>解説 <span class="tag">教材</span> <button class="btn ghost sm" id="orig">原本の画像</button> <button class="btn ghost sm gpt" id="gpt" title="ChatGPT に解説してもらう (Alt+C)">✦ ChatGPT <span class="small muted">Alt+C</span></button></h3>
       <div class="ja expl" data-src="${esc(q.id)}">${tokenize(q.explanation || '（解説テキストなし）', { blank: false }).replace(/\n/g, '<br>')}</div>
       ${q.notes ? `<div class="notes"><b>TEX's notes</b><div class="ja" data-src="${esc(q.id)}">${tokenize(q.notes, { blank: false })}</div></div>` : ''}
       <div id="origImg" hidden>${(q.crops || []).map((c) => (STATIC ? `<img data-enc="/${esc(c)}" alt="原本の解説">` : `<img src="/${esc(c)}" alt="原本の解説" loading="lazy">`)).join('')}</div>
@@ -381,6 +394,7 @@ function renderExplanation(el, q, res, nextLabel = '') {
       toast('再生の後の無音の間に、続けて音読しましょう');
     }
     if (id === 'tts') speak(q.complete);
+    if (id === 'gpt') askChatGPT(q, res);
     if (id === 'orig') { const im = $('#origImg', el); im.hidden = !im.hidden; hydrateImages(im); }
     if (id === 'aiExplain') {
       e.target.disabled = true; e.target.textContent = 'AIに問い合わせ中…';
