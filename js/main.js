@@ -1,7 +1,7 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=2fee19d977';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=2fee19d977';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=2fee19d977';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=2fee19d977';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=b72bd5fa0c';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=b72bd5fa0c';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=b72bd5fa0c';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=b72bd5fa0c';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -351,7 +351,9 @@ function askChatGPT(q, res) {
     '・正解の根拠（文法・語法のポイント）\n・私の選んだ選択肢がなぜ誤りか（正解なら他の選択肢が誤りの理由）\n・同じパターンを見抜くコツと、似た例文を1つ\n\n' +
     `問題: ${q.text.replace(/-{3,}|_{3,}|—+/, '-------')}\n${choices}\n\n私の解答: ${mine}\n正解: (${LETTERS[q.answer]}) ${q.choices[q.answer]}`;
   navigator.clipboard?.writeText(prompt).catch(() => {}); // 自動送信されなかったときは貼り付けで使える
-  window.open('https://chatgpt.com/?toeic=1&q=' + encodeURIComponent(prompt), 'chatgpt');
+  // 拡張（chatgpt-autosend）があれば開いている ChatGPT タブに即送信、なければ ?q= 付きで開く
+  if (document.documentElement.dataset.gptExt) window.postMessage({ type: 'toeic-gpt', prompt }, '*');
+  else window.open('https://chatgpt.com/?toeic=1&q=' + encodeURIComponent(prompt), 'chatgpt');
 }
 
 function renderExplanation(el, q, res, nextLabel = '') {

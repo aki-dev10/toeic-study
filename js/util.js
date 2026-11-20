@@ -1,5 +1,5 @@
 // 共通ユーティリティ・API・状態
-import { STATIC, localApi } from './static.js?v=2fee19d977';
+import { STATIC, localApi } from './static.js?v=b72bd5fa0c';
 export const $ = (s, el = document) => el.querySelector(s);
 export const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
