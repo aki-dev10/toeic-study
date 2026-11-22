@@ -1,8 +1,8 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=9d71f3abf2';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=9d71f3abf2';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=9d71f3abf2';
-import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=9d71f3abf2';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=9d71f3abf2';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=a9d859bcd1';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=a9d859bcd1';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=a9d859bcd1';
+import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=a9d859bcd1';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=a9d859bcd1';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -33,12 +33,11 @@ async function route() {
 }
 
 document.addEventListener('keydown', (e) => {
-  // Alt+C: 解説画面なら ChatGPT に問題を渡して解説してもらう
-  if (e.altKey && !e.ctrlKey && e.code === 'KeyC' && document.getElementById('gpt')) {
-    // Alt+C: API キーがあれば Claude の解説をこの画面に表示。Alt+Shift+C（キーなしなら Alt+C）は ChatGPT
+  // Alt+C: 解説画面なら Claude の解説をこの画面に表示
+  if (e.altKey && !e.ctrlKey && e.code === 'KeyC' && document.getElementById('aiAns')) {
     e.preventDefault();
-    if (aiKey() && !e.shiftKey) return document.getElementById('aiGo')?.click();
-    const b = document.getElementById('gpt'); b.dataset.fresh = !aiKey() && e.shiftKey ? '1' : ''; return b.click();
+    if (!aiKey()) return toast('設定の「AI 解説（Claude）」で API キーを入れてください');
+    return document.getElementById('aiGo')?.click();
   }
   if (e.target.matches('input, textarea, select') || e.ctrlKey || e.metaKey || e.altKey) return;
   if (popupOpen() && e.key !== 'Escape') return;
@@ -349,19 +348,6 @@ async function toggleBookmark(q, root) {
   toast(cur ? 'ブックマークを外しました' : 'ブックマークしました');
 }
 
-// ChatGPT に問題・選択肢・自分の解答を渡す。同じ名前のタブ（chatgpt）を使い回し、毎回新しい会話で自動送信される
-function askChatGPT(q, res, fresh = false) {
-  const choices = q.choices.map((c, i) => `(${LETTERS[i]}) ${c}`).join('\n');
-  const mine = res.choice != null ? `(${LETTERS[res.choice]}) ${q.choices[res.choice]}` : '未解答';
-  const prompt = 'TOEIC Part 5 の問題です。日本語で解説してください。\n' +
-    '・正解の根拠（文法・語法のポイント）\n・私の選んだ選択肢がなぜ誤りか（正解なら他の選択肢が誤りの理由）\n・同じパターンを見抜くコツと、似た例文を1つ\n\n' +
-    `問題: ${q.text.replace(/-{3,}|_{3,}|—+/, '-------')}\n${choices}\n\n私の解答: ${mine}\n正解: (${LETTERS[q.answer]}) ${q.choices[q.answer]}`;
-  navigator.clipboard?.writeText(prompt).catch(() => {}); // 自動送信されなかったときは貼り付けで使える
-  // 拡張（chatgpt-autosend）があれば開いている ChatGPT タブに即送信、なければ ?q= 付きで開く
-  if (document.documentElement.dataset.gptExt) window.postMessage({ type: 'toeic-gpt', prompt, fresh }, '*');
-  else window.open('https://chatgpt.com/?toeic=1&q=' + encodeURIComponent(prompt), 'chatgpt');
-}
-
 // ===== Claude の解説（解説欄の一番上に表示。続けて質問もできる） =====
 async function runClaude(el, q, res) {
   const box = $('#aiAns', el);
@@ -419,7 +405,7 @@ function renderExplanation(el, q, res, nextLabel = '') {
         ${nextBtn('next2')}
       </div>
       ${q.translation ? `<h3>日本語訳</h3><p class="ja">${esc(q.translation)}</p>` : ''}
-      <h3>解説 <span class="tag">教材</span> <button class="btn ghost sm" id="orig">原本の画像</button> <button class="btn ghost sm gpt" id="gpt" title="ChatGPT に解説してもらう">✦ ChatGPT <span class="small muted">${aiKey() ? 'Alt+Shift+C' : 'Alt+C'}</span></button></h3>
+      <h3>解説 <span class="tag">教材</span> <button class="btn ghost sm" id="orig">原本の画像</button></h3>
       <div class="ja expl" data-src="${esc(q.id)}">${tokenize(q.explanation || '（解説テキストなし）', { blank: false }).replace(/\n/g, '<br>')}</div>
       ${q.notes ? `<div class="notes"><b>TEX's notes</b><div class="ja" data-src="${esc(q.id)}">${tokenize(q.notes, { blank: false })}</div></div>` : ''}
       <div id="origImg" hidden>${(q.crops || []).map((c) => (STATIC ? `<img data-enc="/${esc(c)}" alt="原本の解説">` : `<img src="/${esc(c)}" alt="原本の解説" loading="lazy">`)).join('')}</div>
@@ -442,7 +428,6 @@ function renderExplanation(el, q, res, nextLabel = '') {
     if (id === 'tts') speak(q.complete);
     if (id === 'aiGo') runClaude(el, q, res);
     if (id === 'aiSend') followUp(el);
-    if (id === 'gpt') { const b = e.target.closest('button'); askChatGPT(q, res, b.dataset.fresh === '1'); b.dataset.fresh = ''; }
     if (id === 'orig') { const im = $('#origImg', el); im.hidden = !im.hidden; hydrateImages(im); }
     if (id === 'aiExplain') {
       e.target.disabled = true; e.target.textContent = 'AIに問い合わせ中…';
@@ -690,7 +675,7 @@ async function settings(root) {
       <div class="form-grid"><label>模試の問題数<input id="exCount" type="number" value="${S.exam.count}"></label><label>模試の制限時間（分）<input id="exMin" type="number" value="${S.exam.minutes}"></label></div>
     </section>
     <section class="card"><h2>AI 解説（Claude）</h2>
-      <p class="small">状態: ${aiKey() ? '<b class="ok">この端末で利用可能</b>（解説画面で Alt+C）' : '未設定（Alt+C は ChatGPT を開きます）'}</p>
+      <p class="small">状態: ${aiKey() ? '<b class="ok">この端末で利用可能</b>（解説画面で Alt+C）' : '未設定'}</p>
       <div class="form-grid"><label>Anthropic API キー<input id="aiKey" type="password" placeholder="${aiKey() ? '設定済み（変更する場合のみ入力）' : 'sk-ant-...'}" autocomplete="off"></label>
         <label>モデル<select id="aiModel">${Object.entries(MODELS).map(([v, l]) => `<option value="${v}" ${(MODELS[S.ai.model] ? S.ai.model : DEFAULT_MODEL) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
       <label class="check"><input type="checkbox" id="aiAuto" ${L.aiAuto ? 'checked' : ''}> 不正解のときは自動で AI 解説を表示する</label>
