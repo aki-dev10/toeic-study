@@ -238,3 +238,7 @@ mark, mark.ans { background: var(--mark); color: inherit; border-radius: 3px; pa
 }
 .login { max-width: 360px; margin: 12vh auto; display: flex; flex-direction: column; gap: 12px; }
 .login input { font-size: 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
+#aiAns .ai-box { font-size: 16px; line-height: 1.7; }
+#aiAns .ai-q { margin-top: 8px; }
+#aiAns .ai-follow { margin-top: 8px; }
+#aiAns .ai-follow input { flex: 1; min-width: 0; }

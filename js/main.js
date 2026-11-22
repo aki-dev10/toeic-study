@@ -1,7 +1,8 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=ae10e9a2ce';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=ae10e9a2ce';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=ae10e9a2ce';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=ae10e9a2ce';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=9d71f3abf2';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=9d71f3abf2';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=9d71f3abf2';
+import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=9d71f3abf2';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=9d71f3abf2';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -33,7 +34,12 @@ async function route() {
 
 document.addEventListener('keydown', (e) => {
   // Alt+C: 解説画面なら ChatGPT に問題を渡して解説してもらう
-  if (e.altKey && !e.ctrlKey && e.code === 'KeyC' && document.getElementById('gpt')) { e.preventDefault(); const b = document.getElementById('gpt'); b.dataset.fresh = e.shiftKey ? '1' : ''; return b.click(); } // Alt+Shift+C は新しい会話
+  if (e.altKey && !e.ctrlKey && e.code === 'KeyC' && document.getElementById('gpt')) {
+    // Alt+C: API キーがあれば Claude の解説をこの画面に表示。Alt+Shift+C（キーなしなら Alt+C）は ChatGPT
+    e.preventDefault();
+    if (aiKey() && !e.shiftKey) return document.getElementById('aiGo')?.click();
+    const b = document.getElementById('gpt'); b.dataset.fresh = !aiKey() && e.shiftKey ? '1' : ''; return b.click();
+  }
   if (e.target.matches('input, textarea, select') || e.ctrlKey || e.metaKey || e.altKey) return;
   if (popupOpen() && e.key !== 'Escape') return;
   if (keyHandler) keyHandler(e);
@@ -356,6 +362,41 @@ function askChatGPT(q, res, fresh = false) {
   else window.open('https://chatgpt.com/?toeic=1&q=' + encodeURIComponent(prompt), 'chatgpt');
 }
 
+// ===== Claude の解説（解説欄の一番上に表示。続けて質問もできる） =====
+async function runClaude(el, q, res) {
+  const box = $('#aiAns', el);
+  if (!box || box.dataset.busy) return;
+  box.dataset.busy = '1';
+  el._ai = { messages: [{ role: 'user', content: questionPrompt(q, res, LETTERS) }] };
+  box.innerHTML = '<div class="ai-box"><div class="ai-text">…</div></div>';
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  await streamTo(el, $('.ai-text', box));
+  box.dataset.busy = '';
+  if (!$('#aiQ', box)) box.querySelector('.ai-box').insertAdjacentHTML('beforeend', '<div class="row gap ai-follow"><input id="aiQ" placeholder="続けて質問（Enter で送信）" autocomplete="off"><button class="btn ghost sm" id="aiSend">送信</button></div>');
+}
+async function followUp(el) {
+  const inp = $('#aiQ', el); const text = inp?.value.trim();
+  if (!text || !el._ai || $('#aiAns', el).dataset.busy) return;
+  inp.value = '';
+  $('#aiAns', el).dataset.busy = '1';
+  el._ai.messages.push({ role: 'user', content: text });
+  $('.ai-follow', el).insertAdjacentHTML('beforebegin', `<div class="ai-q small muted">Q. ${esc(text)}</div><div class="ai-text">…</div>`);
+  const outs = $$('.ai-text', el);
+  await streamTo(el, outs[outs.length - 1]);
+  $('#aiAns', el).dataset.busy = '';
+  inp.focus();
+}
+async function streamTo(el, out) {
+  const model = MODELS[store.settings.ai?.model] ? store.settings.ai.model : DEFAULT_MODEL;
+  try {
+    const text = await ask(model, el._ai.messages, (t) => { out.innerHTML = toHtml(t); });
+    el._ai.messages.push({ role: 'assistant', content: text });
+  } catch (err) {
+    el._ai.messages.pop(); // 失敗した質問は履歴に残さない
+    out.innerHTML = `<span class="warn">${esc(err.message || String(err))}</span>`;
+  }
+}
+
 function renderExplanation(el, q, res, nextLabel = '') {
   // 解説を読んだ位置から上に戻らずに次へ進めるボタン（id は renderQuestion 側で処理）
   const nextBtn = (id) => (nextLabel ? `<button class="btn primary sm next-inline" id="${id}">${nextLabel}</button>` : '');
@@ -365,7 +406,9 @@ function renderExplanation(el, q, res, nextLabel = '') {
     <section class="card explain ${res.correct === false ? 'is-wrong' : res.correct ? 'is-right' : ''}">
       <div class="verdict">${res.correct == null ? '' : res.correct ? '<span class="ok">○ 正解</span>' : '<span class="ng">× 不正解</span>'}
         <span>正解 <b>(${LETTERS[q.answer]}) ${esc(q.choices[q.answer])}</b></span>
-        ${st.n ? `<span class="small muted">これまで ${st.ok}/${st.n} 正解</span>` : ''}</div>
+        ${st.n ? `<span class="small muted">これまで ${st.ok}/${st.n} 正解</span>` : ''}
+        ${aiKey() ? '<button class="btn ghost sm" id="aiGo" title="Claude に解説してもらう (Alt+C)">✦ AI解説 <span class="small muted">Alt+C</span></button>' : ''}</div>
+      <div id="aiAns"></div>
       <h3>完成文</h3>
       <div class="en complete" data-src="${esc(q.id)}">${completeHtml(q)}</div>
       <div class="audio-row">
@@ -376,7 +419,7 @@ function renderExplanation(el, q, res, nextLabel = '') {
         ${nextBtn('next2')}
       </div>
       ${q.translation ? `<h3>日本語訳</h3><p class="ja">${esc(q.translation)}</p>` : ''}
-      <h3>解説 <span class="tag">教材</span> <button class="btn ghost sm" id="orig">原本の画像</button> <button class="btn ghost sm gpt" id="gpt" title="ChatGPT に解説してもらう (Alt+C／新しい会話は Alt+Shift+C)">✦ ChatGPT <span class="small muted">Alt+C</span></button></h3>
+      <h3>解説 <span class="tag">教材</span> <button class="btn ghost sm" id="orig">原本の画像</button> <button class="btn ghost sm gpt" id="gpt" title="ChatGPT に解説してもらう">✦ ChatGPT <span class="small muted">${aiKey() ? 'Alt+Shift+C' : 'Alt+C'}</span></button></h3>
       <div class="ja expl" data-src="${esc(q.id)}">${tokenize(q.explanation || '（解説テキストなし）', { blank: false }).replace(/\n/g, '<br>')}</div>
       ${q.notes ? `<div class="notes"><b>TEX's notes</b><div class="ja" data-src="${esc(q.id)}">${tokenize(q.notes, { blank: false })}</div></div>` : ''}
       <div id="origImg" hidden>${(q.crops || []).map((c) => (STATIC ? `<img data-enc="/${esc(c)}" alt="原本の解説">` : `<img src="/${esc(c)}" alt="原本の解説" loading="lazy">`)).join('')}</div>
@@ -397,6 +440,8 @@ function renderExplanation(el, q, res, nextLabel = '') {
       toast('再生の後の無音の間に、続けて音読しましょう');
     }
     if (id === 'tts') speak(q.complete);
+    if (id === 'aiGo') runClaude(el, q, res);
+    if (id === 'aiSend') followUp(el);
     if (id === 'gpt') { const b = e.target.closest('button'); askChatGPT(q, res, b.dataset.fresh === '1'); b.dataset.fresh = ''; }
     if (id === 'orig') { const im = $('#origImg', el); im.hidden = !im.hidden; hydrateImages(im); }
     if (id === 'aiExplain') {
@@ -407,6 +452,8 @@ function renderExplanation(el, q, res, nextLabel = '') {
       } catch (err) { toast(err.message); e.target.disabled = false; e.target.textContent = 'AIの補足説明を見る'; }
     }
   };
+  el.onkeydown = (e) => { if (e.target.id === 'aiQ' && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); followUp(el); } };
+  if (aiKey() && store.local.aiAuto && res.correct === false) runClaude(el, q, res); // 不正解なら自動で解説
   el.onchange = async (e) => {
     if (e.target.id === 'rv') {
       await api('qstate', { body: { qid: q.id, review: e.target.checked ? 1 : 0 } });
@@ -642,12 +689,13 @@ async function settings(root) {
       <label class="check"><input type="checkbox" id="oneClick" ${L.oneClick ? 'checked' : ''}> 選択肢をクリック／タップしたら即解答（キーボードは 1〜4 で選択して Enter）</label>
       <div class="form-grid"><label>模試の問題数<input id="exCount" type="number" value="${S.exam.count}"></label><label>模試の制限時間（分）<input id="exMin" type="number" value="${S.exam.minutes}"></label></div>
     </section>
-    <section class="card"><h2>AI 補足（任意）</h2>
-      <p class="small">状態: ${store.ai ? '<b class="ok">利用可能</b>' : '未設定（辞書・教材の解説だけで全機能が使えます）'}</p>
-      <div class="form-grid"><label>Anthropic API キー<input id="aiKey" type="password" placeholder="${store.ai ? '設定済み（変更する場合のみ入力）' : 'sk-ant-...'}" autocomplete="off"></label>
-        <label>モデル<input id="aiModel" value="${esc(S.ai.model)}"></label>
-        <label>思考の深さ<select id="aiEffort">${['low', 'medium', 'high'].map((x) => `<option ${S.ai.effort === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label></div>
-      <p class="small muted">キーはこのPCの data/secrets.json にのみ保存され、バックアップには含まれません。</p>
+    <section class="card"><h2>AI 解説（Claude）</h2>
+      <p class="small">状態: ${aiKey() ? '<b class="ok">この端末で利用可能</b>（解説画面で Alt+C）' : '未設定（Alt+C は ChatGPT を開きます）'}</p>
+      <div class="form-grid"><label>Anthropic API キー<input id="aiKey" type="password" placeholder="${aiKey() ? '設定済み（変更する場合のみ入力）' : 'sk-ant-...'}" autocomplete="off"></label>
+        <label>モデル<select id="aiModel">${Object.entries(MODELS).map(([v, l]) => `<option value="${v}" ${(MODELS[S.ai.model] ? S.ai.model : DEFAULT_MODEL) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+      <label class="check"><input type="checkbox" id="aiAuto" ${L.aiAuto ? 'checked' : ''}> 不正解のときは自動で AI 解説を表示する</label>
+      <label class="check"><input type="checkbox" id="aiClear"> この端末から API キーを消す</label>
+      <p class="small muted">キーはこの端末のブラウザにだけ保存されます（端末間の同期・バックアップ・公開サイトには含まれません）。</p>
     </section>
     <section class="card"><h2>単語メール配信（将来機能・現在は送信しません）</h2>
       <label class="check"><input type="checkbox" id="emEnabled" ${S.email.enabled ? 'checked' : ''}> 週1回の自動送信を有効にする <span class="tag">送信処理は未実装</span></label>
@@ -691,9 +739,11 @@ async function settings(root) {
     if (id === 'save') {
       readLocal();
       const body = { exam: { count: +$('#exCount', root).value, minutes: +$('#exMin', root).value },
-        ai: { model: $('#aiModel', root).value.trim() || 'claude-opus-5-5', effort: $('#aiEffort', root).value },
+        ai: { model: $('#aiModel', root).value, effort: 'low' },
         email: { ...S.email, enabled: $('#emEnabled', root).checked, recipient: $('#emTo', root).value.trim(), weekday: +$('#emDay', root).value, hour: +$('#emHour', root).value } };
-      if ($('#aiKey', root).value.trim()) body.aiKey = $('#aiKey', root).value.trim();
+      if ($('#aiKey', root).value.trim()) setAiKey($('#aiKey', root).value.trim());
+      if ($('#aiClear', root).checked) setAiKey('');
+      warm();
       const r = await api('settings', { body });
       store.settings = r.settings; store.ai = r.ai;
       toast('保存しました'); settings(root);
@@ -708,7 +758,7 @@ async function settings(root) {
   if (STATIC) api('sync').then(showSync);
   const readLocal = () => {
     L.voice = $('#voice', root).value; L.rate = +$('#rate2', root).value; L.pauseMs = +$('#pause', root).value || 700;
-    L.preferBook = $('#preferBook', root).checked; L.autoPlay = $('#autoPlay', root).checked; L.oneClick = $('#oneClick', root).checked; L.skipCorrect = $('#skipCorrect', root).checked; saveLocal();
+    L.preferBook = $('#preferBook', root).checked; L.autoPlay = $('#autoPlay', root).checked; L.oneClick = $('#oneClick', root).checked; L.skipCorrect = $('#skipCorrect', root).checked; L.aiAuto = $('#aiAuto', root).checked; saveLocal();
   };
   $('#restore', root).onchange = async (e) => {
     const file = e.target.files[0]; if (!file) return;
@@ -741,4 +791,4 @@ if (STATIC) window.addEventListener('toeic-synced', async () => {
   if (!/^#\/(session|exam)/.test(location.hash)) route();
   toast('他の端末の学習データを取り込みました');
 });
-(STATIC ? unlock(app).then(() => Promise.race([pull(), new Promise((r) => setTimeout(r, 6000))])) : Promise.resolve()).then(loadAll).then(route).catch((e) => { app.innerHTML = `<div class="card">読み込みに失敗しました: ${esc(e.message)}${STATIC ? '' : '<br>サーバー（start.bat）が起動しているか確認してください。'}</div>`; });
+(STATIC ? unlock(app).then(() => Promise.race([pull(), new Promise((r) => setTimeout(r, 6000))])) : Promise.resolve()).then(loadAll).then(() => { warm(); route(); }).catch((e) => { app.innerHTML = `<div class="card">読み込みに失敗しました: ${esc(e.message)}${STATIC ? '' : '<br>サーバー（start.bat）が起動しているか確認してください。'}</div>`; });
