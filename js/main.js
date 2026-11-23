@@ -1,8 +1,8 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=5d4372e117';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=5d4372e117';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=5d4372e117';
-import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=5d4372e117';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=5d4372e117';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=748f889f1b';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=748f889f1b';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=748f889f1b';
+import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=748f889f1b';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=748f889f1b';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -124,13 +124,14 @@ async function home(root) {
   }
   const cats = [...cat.entries()].map(([k, v]) => ({ k, ...v, rate: pct(v.ok, v.n) })).sort((a, b) => a.rate - b.rate);
   const weak = cats.filter((c) => c.n >= 5 && c.rate < 80).slice(0, 3);
-  const next = qs.find((q) => !store.stats[q.id]?.n);
+  const rs = resumeSession();
+  const next = rs && store.byId.get(rs.ids[rs.i]);
   const exams = await api('exams');
   root.innerHTML = `
     <section class="hero card">
       <div><h1>今日も1問から。</h1><p class="muted">解く → 聞く → 分からない単語を登録 → 復習</p></div>
       <div class="hero-actions">
-        ${next ? `<a class="btn primary" href="#/practice?resume=1" id="goNext">続きから演習（No.${next.label}〜）</a>` : ''}
+        ${next ? `<a class="btn primary" href="#/practice?resume=1" id="goNext">続きから演習（${Object.keys(rs.results).length ? `${rs.i + 1} / ${rs.ids.length}問目・` : ''}No.${next.label}〜）</a>` : ''}
         <a class="btn ${d.words.due ? 'accent' : ''}" href="#/words/review">単語の復習 ${d.words.due ? `<b>${d.words.due}語</b>` : ''}</a>
         <a class="btn" href="#/review">苦手問題を復習</a>
       </div>
@@ -183,9 +184,13 @@ function chart(days) {
 
 // ================= 演習：条件設定 =================
 function practiceSetup(root, params) {
+  if (params.get('resume')) {
+    const s = resumeSession();
+    if (s) { putSession(s); return location.replace('#/session'); } // 履歴に残さない（「戻る」でホームに戻れるように）
+    toast('未回答の問題がありません');
+  }
   const f = { order: 'seq', count: 20, ...(store.local.practice || {}) };
   if (params.get('cat')) { f.categories = [params.get('cat')]; f.status = ''; }
-  if (params.get('resume')) { f.count = store.settings.practice?.resumeCount ?? 20; f.status = 'unanswered'; f.order = 'seq'; f.categories = []; f.from = ''; f.to = ''; f.section = ''; }
   root.innerHTML = `
     <div class="page-head"><h1>通常学習</h1></div>
     <form class="card" id="pf">${filterForm(f)}
@@ -195,13 +200,38 @@ function practiceSetup(root, params) {
   const form = $('#pf', root);
   const upd = () => { const x = readForm(form); $('#cnt', root).textContent = `該当 ${filterQuestions({ ...x, count: 0 }).length} 問`; };
   form.oninput = upd; upd();
-  form.onsubmit = (e) => { e.preventDefault(); const x = readForm(form); if (!params.get('resume')) { store.local.practice = x; saveLocal(); } startSession(filterQuestions(x), 'practice', '通常学習'); };
-  if (params.get('resume')) form.requestSubmit();
+  form.onsubmit = (e) => { e.preventDefault(); const x = readForm(form); store.local.practice = x; saveLocal(); startSession(filterQuestions(x), 'practice', '通常学習'); };
 }
 
 // ================= 演習セッション =================
 function getSession() { try { return JSON.parse(sessionStorage.getItem('session')); } catch (e) { return null; } }
-function putSession(s) { sessionStorage.setItem('session', JSON.stringify(s)); }
+function putSession(s) {
+  sessionStorage.setItem('session', JSON.stringify(s));
+  if (s.resume) try { localStorage.setItem(RESUME_KEY, JSON.stringify(s)); } catch (e) { /* */ }
+}
+
+// 「続きから演習」: その日の途中経過を端末に保存し、他の画面へ移っても（タブを閉じても）続きの番号から再開する
+const RESUME_KEY = 'toeic.resume';
+const today = () => new Date().toDateString();
+function resumeSession() {
+  let old = null;
+  try { old = JSON.parse(localStorage.getItem(RESUME_KEY)); } catch (e) { /* */ }
+  if (old?.resume !== today()) old = null;
+  const count = store.settings.practice?.resumeCount ?? 20;
+  const s = old || { ids: [], i: 0, mode: 'practice', title: '通常学習', id: Date.now().toString(36), results: {}, resume: today() };
+  const done = (id) => !!s.results[id];
+  const at = s.ids.slice(s.i).find((id) => !done(id)); // 見ていた問題（解答済みならその次）
+  // 他の端末などで解答済みになった問題を外し、設定の問題数に合わせて増減する
+  let ids = s.ids.filter((id) => store.byId.has(id) && (done(id) || !store.stats[id]?.n));
+  for (const q of filterQuestions({ status: 'unanswered', order: 'seq', count: 0 })) if (!ids.includes(q.id)) ids.push(q.id);
+  let room = count > 0 ? count - ids.filter(done).length : Infinity;
+  ids = ids.filter((id) => done(id) || room-- > 0);
+  const rest = ids.findIndex((id) => !done(id));
+  if (rest < 0) { if (!old) return null; localStorage.removeItem(RESUME_KEY); return resumeSession(); } // 解き終えていれば次の組
+  s.ids = ids;
+  s.i = ids.includes(at) ? ids.indexOf(at) : rest;
+  return s;
+}
 
 function session(root) {
   const s = getSession();
@@ -450,6 +480,7 @@ function renderExplanation(el, q, res, nextLabel = '') {
 
 function finish(root, s) {
   stop();
+  if (s.resume) localStorage.removeItem(RESUME_KEY); // 最後まで進んだら次は新しい組から
   const rs = s.ids.map((id) => s.results[id]).filter(Boolean);
   const ok = rs.filter((r) => r.correct).length;
   const ms = rs.reduce((a, r) => a + (r.ms || 0), 0);

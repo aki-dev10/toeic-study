@@ -1,6 +1,6 @@
 // 単語登録ポップアップ・単語帳・単語復習
-import { $, $$, esc, api, store, reloadWords, wordKey, toast, fmtDate, shuffle, tokenize, questionLabel, BLANK_RE } from './util.js?v=5d4372e117';
-import { speak, stop } from './audio.js?v=5d4372e117';
+import { $, $$, esc, api, store, reloadWords, wordKey, toast, fmtDate, shuffle, tokenize, questionLabel, BLANK_RE } from './util.js?v=748f889f1b';
+import { speak, stop } from './audio.js?v=748f889f1b';
 
 const LEVELS = ['新規', '学習中', '定着中', '定着', 'ほぼ習得', '習得済み'];
 
