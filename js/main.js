@@ -1,8 +1,8 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=a9d859bcd1';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=a9d859bcd1';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=a9d859bcd1';
-import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=a9d859bcd1';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=a9d859bcd1';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=5d4372e117';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=5d4372e117';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=5d4372e117';
+import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=5d4372e117';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=5d4372e117';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -185,7 +185,7 @@ function chart(days) {
 function practiceSetup(root, params) {
   const f = { order: 'seq', count: 20, ...(store.local.practice || {}) };
   if (params.get('cat')) { f.categories = [params.get('cat')]; f.status = ''; }
-  if (params.get('resume')) { f.status = 'unanswered'; f.order = 'seq'; f.categories = []; f.from = ''; f.to = ''; f.section = ''; }
+  if (params.get('resume')) { f.count = store.settings.practice?.resumeCount ?? 20; f.status = 'unanswered'; f.order = 'seq'; f.categories = []; f.from = ''; f.to = ''; f.section = ''; }
   root.innerHTML = `
     <div class="page-head"><h1>通常学習</h1></div>
     <form class="card" id="pf">${filterForm(f)}
@@ -195,7 +195,7 @@ function practiceSetup(root, params) {
   const form = $('#pf', root);
   const upd = () => { const x = readForm(form); $('#cnt', root).textContent = `該当 ${filterQuestions({ ...x, count: 0 }).length} 問`; };
   form.oninput = upd; upd();
-  form.onsubmit = (e) => { e.preventDefault(); const x = readForm(form); store.local.practice = x; saveLocal(); startSession(filterQuestions(x), 'practice', '通常学習'); };
+  form.onsubmit = (e) => { e.preventDefault(); const x = readForm(form); if (!params.get('resume')) { store.local.practice = x; saveLocal(); } startSession(filterQuestions(x), 'practice', '通常学習'); };
   if (params.get('resume')) form.requestSubmit();
 }
 
@@ -672,7 +672,7 @@ async function settings(root) {
     </section>
     <section class="card"><h2>演習</h2>
       <label class="check"><input type="checkbox" id="oneClick" ${L.oneClick ? 'checked' : ''}> 選択肢をクリック／タップしたら即解答（キーボードは 1〜4 で選択して Enter）</label>
-      <div class="form-grid"><label>模試の問題数<input id="exCount" type="number" value="${S.exam.count}"></label><label>模試の制限時間（分）<input id="exMin" type="number" value="${S.exam.minutes}"></label></div>
+      <div class="form-grid"><label>「続きから演習」の問題数（0＝残りすべて）<input id="resumeCount" type="number" min="0" value="${S.practice?.resumeCount ?? 20}"></label><label>模試の問題数<input id="exCount" type="number" value="${S.exam.count}"></label><label>模試の制限時間（分）<input id="exMin" type="number" value="${S.exam.minutes}"></label></div>
     </section>
     <section class="card"><h2>AI 解説（Claude）</h2>
       <p class="small">状態: ${aiKey() ? '<b class="ok">この端末で利用可能</b>（解説画面で Alt+C）' : '未設定'}</p>
@@ -723,7 +723,8 @@ async function settings(root) {
     if (id === 'emPreview') { const p = await api('email/preview'); const b = $('#emBox', root); b.hidden = false; b.textContent = `宛先: ${p.recipient}\n件名: ${p.subject}\n\n${p.body}`; }
     if (id === 'save') {
       readLocal();
-      const body = { exam: { count: +$('#exCount', root).value, minutes: +$('#exMin', root).value },
+      const rc = $('#resumeCount', root).value.trim();
+      const body = { practice: { resumeCount: rc === '' ? 20 : Math.max(0, Math.floor(+rc) || 0) }, exam: { count: +$('#exCount', root).value, minutes: +$('#exMin', root).value },
         ai: { model: $('#aiModel', root).value, effort: 'low' },
         email: { ...S.email, enabled: $('#emEnabled', root).checked, recipient: $('#emTo', root).value.trim(), weekday: +$('#emDay', root).value, hour: +$('#emHour', root).value } };
       if ($('#aiKey', root).value.trim()) setAiKey($('#aiKey', root).value.trim());

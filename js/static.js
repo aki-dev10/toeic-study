@@ -149,7 +149,7 @@ const now = () => iso(new Date());
 
 // ---------- 学習データ ----------
 const DEFAULT_SETTINGS = { email: { enabled: false, recipient: 'ah0864@sel.co.jp', weekday: 6, hour: 20, include: ['meaning', 'pos', 'example', 'source'] },
-  ai: { model: 'claude-opus-5-5', effort: 'low' }, exam: { count: 30, minutes: 10 } };
+  ai: { model: 'claude-opus-5-5', effort: 'low' }, exam: { count: 30, minutes: 10 }, practice: { resumeCount: 20 } };
 function getSettings() {
   const s = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
   for (const r of q('SELECT key, value FROM settings')) { try { s[r.key] = JSON.parse(r.value); } catch (e) { /* */ } }
