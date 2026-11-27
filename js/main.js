@@ -1,8 +1,8 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=eddb48ece9';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=eddb48ece9';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=eddb48ece9';
-import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=eddb48ece9';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=eddb48ece9';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=181d01857b';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=181d01857b';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=181d01857b';
+import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=181d01857b';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=181d01857b';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -97,7 +97,7 @@ function filterForm(f, { withCount = true } = {}) {
     <label>番号（から）<input name="from" type="number" min="1" value="${esc(f.from || '')}" placeholder="1"></label>
     <label>番号（まで）<input name="to" type="number" min="1" value="${esc(f.to || '')}" placeholder="1019"></label>
     ${withCount ? `<label>出題数<input name="count" type="number" min="0" value="${esc(f.count ?? 20)}" placeholder="0=すべて"></label>` : ''}
-    <label>セクション<select name="section"><option value="">すべて</option>${['例題', 'トレーニング', '実戦問題', '基礎編', '応用編', '発展編', '文法模試'].map((s) => `<option ${f.section === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
+    <label>セクション<select name="section"><option value="">すべて</option>${['例題', 'トレーニング', '実戦問題', '基礎編', '応用編', '発展編', '文法模試', '書籍オリジナル', '実戦模試'].map((s) => `<option ${f.section === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
   </div>
   <div class="cat-pick"><div class="small muted">文法カテゴリ（未選択＝すべて）</div>
     ${chapters().map(([c, n]) => `<label class="chip-check"><input type="checkbox" name="cat" value="${esc(c)}" ${(f.categories || []).includes(c) ? 'checked' : ''}><span>${esc(c)} <small>${n}</small></span></label>`).join('')}
@@ -438,6 +438,7 @@ function renderExplanation(el, q, res, nextLabel = '') {
       <div class="verdict">${res.correct == null ? '' : res.correct ? '<span class="ok">○ 正解</span>' : '<span class="ng">× 不正解</span>'}
         ${res.attemptId ? '<button class="btn ghost sm" id="undo" title="押し間違い：この解答を記録しない (Z / Backspace)">↩ 押し間違い <span class="small muted">Z</span></button>' : ''}
         <span>正解 <b>(${LETTERS[q.answer]}) ${esc(q.choices[q.answer])}</b></span>
+        ${q.accuracy != null ? `<span class="small muted">教材の正答率 ${q.accuracy}%</span>` : ''}
         ${st.n ? `<span class="small muted">これまで ${st.ok}/${st.n} 正解</span>` : ''}
         ${aiKey() ? '<button class="btn ghost sm" id="aiGo" title="Claude に解説してもらう (Alt+C)">✦ AI解説 <span class="small muted">Alt+C</span></button>' : ''}</div>
       <div id="aiAns"></div>
@@ -529,7 +530,7 @@ function examSetup(root) {
       <button class="btn primary" id="startRandom">開始</button>
       <p class="small muted">解答中は正誤を表示しません。音声もありません。終了後に採点し、1問ごとの解答時間を分析します。</p>
     </div>
-    ${sets.length ? `<div class="card"><h2>教材の文法模試</h2><div class="set-grid">${sets.map((x) => `<button class="btn set" data-set="${x.id}">${esc(x.title)}<small>${x.qids.length}問・${Math.round(x.qids.length / 3)}分</small></button>`).join('')}</div></div>` : ''}`;
+    ${sets.length ? `<div class="card"><h2>教材の模試</h2><div class="set-grid">${sets.map((x) => `<button class="btn set" data-set="${x.id}">${esc(x.title)}<small>${esc(x.material)}・${x.qids.length}問・${Math.round(x.qids.length / 3)}分</small></button>`).join('')}</div></div>` : ''}`;
   root.onclick = (ev) => {
     if (ev.target.id === 'startRandom') {
       const n = +$('#ec', root).value || 30, min = +$('#em', root).value || 10;

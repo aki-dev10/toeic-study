@@ -599,7 +599,7 @@ export async function localApi(path, opts = {}) {
   const parts = p.replace(/^\/+|\/+$/g, '').split('/');
   const [name, arg] = parts;
   if (name === 'content') return JSON.parse(new TextDecoder().decode(await fetchDec('content.json')));
-  if (name === 'state') return { stats: questionStats(), settings: getSettings(), ai: false, audio: { deru1000_audio_2: true } };
+  if (name === 'state') return { stats: questionStats(), settings: getSettings(), ai: false, audio: { deru1000_audio_2: true, dekitate_audio: true } };
   if (name === 'attempt' && method === 'DELETE') { // 押し間違いの取り消し（他の端末にも反映されるよう記録を残す）
     const a = q('SELECT qid, at, session FROM attempts WHERE id=?', [+arg])[0];
     if (a) tx(() => { x('INSERT OR IGNORE INTO deleted_attempts(qid,at,session) VALUES(?,?,?)', [a.qid, a.at, a.session || '']); x('DELETE FROM attempts WHERE id=?', [+arg]); });
