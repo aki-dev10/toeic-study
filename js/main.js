@@ -1,8 +1,8 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=748f889f1b';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=748f889f1b';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=748f889f1b';
-import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=748f889f1b';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=748f889f1b';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=eddb48ece9';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=eddb48ece9';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=eddb48ece9';
+import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=eddb48ece9';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=eddb48ece9';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -319,12 +319,25 @@ function renderQuestion(root, s, opt = {}) {
     putSession(s);
     stop();
     try {
-      await api('attempt', { body: { qid: q.id, choice: selected, correct, ms, mode: s.mode, session: s.id } });
+      const r = await api('attempt', { body: { qid: q.id, choice: selected, correct, ms, mode: s.mode, session: s.id } });
+      if (r?.id) { s.results[q.id].attemptId = r.id; putSession(s); }
       const x = store.stats[q.id] || { n: 0, ok: 0 };
       store.stats[q.id] = { ...x, n: x.n + 1, ok: x.ok + (correct ? 1 : 0), latest: correct ? 1 : 0, first: x.n ? x.first : correct ? 1 : 0, lastMs: ms, last: new Date().toISOString() };
     } catch (e) { toast('記録の保存に失敗しました: ' + e.message); }
-    if (correct && store.local.skipCorrect && !opt.single) { toast('○ 正解', 900); return go(1); } // 正解なら解説を飛ばして次へ
+    if (correct && store.local.skipCorrect && !opt.single) { toast('○ 正解（押し間違いなら ← で戻って Z）', 1500); return go(1); } // 正解なら解説を飛ばして次へ
     renderQuestion(root, s, { ...opt, justAnswered: true }); // 解答後の完成文は新しい描画側で自動再生
+  };
+  // 押し間違い: 今の解答を記録から消して、解答前の状態に戻す
+  const undo = async () => {
+    const r = s.results[q.id];
+    if (!r?.attemptId) return;
+    try {
+      const out = await api('attempt/' + r.attemptId, { method: 'DELETE' });
+      if (out?.stats) store.stats = out.stats;
+    } catch (e) { return toast('取り消しに失敗しました: ' + e.message); }
+    delete s.results[q.id]; putSession(s); stop();
+    toast('押し間違いとして取り消しました');
+    renderQuestion(root, s, opt); window.scrollTo(0, 0);
   };
   const go = (d) => {
     const n = s.i + d;
@@ -347,6 +360,7 @@ function renderQuestion(root, s, opt = {}) {
     if (id === 'next' || id === 'next2' || id === 'next3') go(1);
     if (id === 'prev') go(-1);
     if (id === 'bm') toggleBookmark(q, root);
+    if (id === 'undo') undo();
   };
   root.onchange = (e) => { if (e.target.id === 'rate') { store.local.rate = +e.target.value; saveLocal(); } if (e.target.id === 'rep') { store.local.repeat = e.target.checked ? 3 : 1; saveLocal(); } };
   keyHandler = (e) => {
@@ -356,6 +370,7 @@ function renderQuestion(root, s, opt = {}) {
     else if (e.key === 'ArrowLeft' && !opt.single) go(-1);
     else if (e.key === ' ') { e.preventDefault(); play(); }
     else if (e.key === 'b' || e.key === 'B') toggleBookmark(q, root);
+    else if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace') { e.preventDefault(); undo(); }
   };
   paint();
   if (s.results[q.id]) renderExplanation($('#explain', root), q, s.results[q.id], opt.single ? '' : s.i === s.ids.length - 1 ? '終了' : '次の問題 →');
@@ -421,6 +436,7 @@ function renderExplanation(el, q, res, nextLabel = '') {
   el.innerHTML = `
     <section class="card explain ${res.correct === false ? 'is-wrong' : res.correct ? 'is-right' : ''}">
       <div class="verdict">${res.correct == null ? '' : res.correct ? '<span class="ok">○ 正解</span>' : '<span class="ng">× 不正解</span>'}
+        ${res.attemptId ? '<button class="btn ghost sm" id="undo" title="押し間違い：この解答を記録しない (Z / Backspace)">↩ 押し間違い <span class="small muted">Z</span></button>' : ''}
         <span>正解 <b>(${LETTERS[q.answer]}) ${esc(q.choices[q.answer])}</b></span>
         ${st.n ? `<span class="small muted">これまで ${st.ok}/${st.n} 正解</span>` : ''}
         ${aiKey() ? '<button class="btn ghost sm" id="aiGo" title="Claude に解説してもらう (Alt+C)">✦ AI解説 <span class="small muted">Alt+C</span></button>' : ''}</div>

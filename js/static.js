@@ -115,8 +115,9 @@ CREATE TABLE IF NOT EXISTS sources(id INTEGER PRIMARY KEY, word_id INTEGER NOT N
 CREATE TABLE IF NOT EXISTS word_reviews(id INTEGER PRIMARY KEY, word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE, mode TEXT, grade INTEGER, at TEXT);
 CREATE TABLE IF NOT EXISTS email_log(id INTEGER PRIMARY KEY, created_at TEXT, period_from TEXT, period_to TEXT, recipient TEXT, subject TEXT, word_ids TEXT, status TEXT, error TEXT);
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
-CREATE TABLE IF NOT EXISTS deleted_words(key TEXT PRIMARY KEY, at TEXT);`;
-const USER_TABLES = ['attempts', 'qstate', 'exams', 'words', 'senses', 'sources', 'word_reviews', 'email_log', 'settings', 'deleted_words'];
+CREATE TABLE IF NOT EXISTS deleted_words(key TEXT PRIMARY KEY, at TEXT);
+CREATE TABLE IF NOT EXISTS deleted_attempts(qid TEXT NOT NULL, at TEXT NOT NULL, session TEXT NOT NULL DEFAULT '', PRIMARY KEY(qid, at, session));`;
+const USER_TABLES = ['attempts', 'qstate', 'exams', 'words', 'senses', 'sources', 'word_reviews', 'email_log', 'settings', 'deleted_words', 'deleted_attempts'];
 
 async function userDb() {
   if (db) return db;
@@ -486,7 +487,9 @@ export function merge(data) {
       const l = q('SELECT at FROM deleted_words WHERE key=?', [d.key])[0];
       if (!l || d.at > l.at) x('INSERT OR REPLACE INTO deleted_words(key,at) VALUES(?,?)', [d.key, d.at]);
     }
+    for (const d of T.deleted_attempts || []) x('INSERT OR IGNORE INTO deleted_attempts(qid,at,session) VALUES(?,?,?)', [d.qid, d.at, d.session || '']);
     for (const a of T.attempts || []) {
+      if (q("SELECT 1 x FROM deleted_attempts WHERE qid=? AND at=? AND session=coalesce(?,'') LIMIT 1", [a.qid, a.at, a.session]).length) continue; // 押し間違いで取り消した解答
       if (!q("SELECT 1 x FROM attempts WHERE qid=? AND at=? AND coalesce(session,'')=coalesce(?,'') LIMIT 1", [a.qid, a.at, a.session]).length)
         x('INSERT INTO attempts(qid,choice,correct,ms,mode,session,at) VALUES(?,?,?,?,?,?,?)', [a.qid, a.choice, a.correct, a.ms, a.mode, a.session, a.at]);
     }
@@ -532,6 +535,7 @@ export function merge(data) {
         x('INSERT INTO word_reviews(word_id,mode,grade,at) VALUES(?,?,?,?)', [wid, r.mode, r.grade, r.at]);
     }
     x('DELETE FROM words WHERE id IN (SELECT w.id FROM words w JOIN deleted_words d ON d.key=w.key AND w.created_at<=d.at)');
+    x("DELETE FROM attempts WHERE id IN (SELECT a.id FROM attempts a JOIN deleted_attempts d ON d.qid=a.qid AND d.at=a.at AND d.session=coalesce(a.session,''))");
   });
 }
 
@@ -596,6 +600,11 @@ export async function localApi(path, opts = {}) {
   const [name, arg] = parts;
   if (name === 'content') return JSON.parse(new TextDecoder().decode(await fetchDec('content.json')));
   if (name === 'state') return { stats: questionStats(), settings: getSettings(), ai: false, audio: { deru1000_audio_2: true } };
+  if (name === 'attempt' && method === 'DELETE') { // 押し間違いの取り消し（他の端末にも反映されるよう記録を残す）
+    const a = q('SELECT qid, at, session FROM attempts WHERE id=?', [+arg])[0];
+    if (a) tx(() => { x('INSERT OR IGNORE INTO deleted_attempts(qid,at,session) VALUES(?,?,?)', [a.qid, a.at, a.session || '']); x('DELETE FROM attempts WHERE id=?', [+arg]); });
+    return { ok: true, stats: questionStats() };
+  }
   if (name === 'attempt') return { id: x('INSERT INTO attempts(qid,choice,correct,ms,mode,session,at) VALUES(?,?,?,?,?,?,?)', [body.qid, body.choice, body.correct ? 1 : 0, body.ms, body.mode || 'practice', body.session, body.at || now()]) };
   if (name === 'qstate') return setQstate(body);
   if (name === 'exams') {
