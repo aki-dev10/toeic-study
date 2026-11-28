@@ -1,10 +1,11 @@
 // Part 2（応答問題）アプリ。教材: 『TOEIC L&R テスト Part 2 応答問題 でる200問』
 // 学習記録は Part 5 と同じ attempts / qstate / exams（qid = "p2-<通し番号>"）に保存するので、端末間同期もそのまま効く
-import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=5859a8fbe8';
-import { STATIC, fetchDec, resolveUrl, hydrateImages } from './static.js?v=5859a8fbe8';
-import { stop as stopSpeech } from './audio.js?v=5859a8fbe8';
-import { markRegistered } from './words.js?v=5859a8fbe8';
-import { trendCard, bindTrend } from './trend.js?v=5859a8fbe8';
+import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=71945be40f';
+import { STATIC, fetchDec, resolveUrl, hydrateImages } from './static.js?v=71945be40f';
+import { stop as stopSpeech } from './audio.js?v=71945be40f';
+import { markRegistered } from './words.js?v=71945be40f';
+import { trendCard, bindTrend } from './trend.js?v=71945be40f';
+import { P34_TOTAL } from './part34.js?v=71945be40f';
 
 const L3 = ['A', 'B', 'C'];
 const TYPES = ['WH疑問文', 'Yes/No疑問文', '平叙文', '否定・付加疑問文', '提案・依頼・勧誘・申し出', '選択疑問文'];
@@ -15,6 +16,7 @@ const SESSION_KEY = 'p2session', MOCK_KEY = 'p2mock';
 export function partSwitcher(active) {
   const p5n = store.questions.length, p5a = store.questions.filter((q) => store.stats[q.id]?.n).length;
   const p2a = Object.keys(store.stats).filter((k) => /^p2-\d+$/.test(k) && store.stats[k].n).length;
+  const p34a = Object.keys(store.stats).filter((k) => /^p[34]-\d-\d{3}$/.test(k) && store.stats[k].n).length;
   const tile = (id, href, part, name, sub, prog) => `
     <a class="part-tile ${active === id ? 'on' : ''} ${href ? '' : 'soon'}" ${href ? `href="${href}"` : 'aria-disabled="true"'}>
       <span class="pt-part">${part}</span><span class="pt-name">${name}</span>
@@ -23,7 +25,7 @@ export function partSwitcher(active) {
   injectCss();
   return `<nav class="part-switch" aria-label="Part の切り替え">
     ${tile('p2', '#/p2', 'Part 2', '応答問題', P2.loaded ? `${p2a} / ${P2.questions.length}問` : `${p2a}問 解答済み`, P2.loaded ? pct(p2a, P2.questions.length) : null)}
-    ${tile('p34', '', 'Part 3・4', '会話・説明文', '準備中')}
+    ${tile('p34', '#/p34', 'Part 3・4', '会話・説明文', `${p34a} / ${P34_TOTAL}問`, pct(p34a, P34_TOTAL))}
     ${tile('p5', '#/', 'Part 5', '短文穴埋め', `${p5a} / ${p5n}問`, pct(p5a, p5n))}
     ${tile('p7', '', 'Part 7', '読解', '準備中')}
   </nav>`;

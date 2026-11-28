@@ -1,5 +1,5 @@
 // 学習推移（Part 別の解いた問題数）。Part 5 / Part 2 のホームで共通
-import { $, $$ } from './util.js?v=5859a8fbe8';
+import { $, $$ } from './util.js?v=71945be40f';
 
 // qid の接頭辞で Part を判定（static.js の dashboard() と対応）。Part 3・4 / 7 は解いた日があるときだけ表示
 const PARTS = [

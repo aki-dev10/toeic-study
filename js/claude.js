@@ -1,6 +1,6 @@
 // 解説画面で Claude に問題を解説してもらう（ブラウザから直接 API を呼ぶ。PC 用）。
 // API キーはこの端末の localStorage にだけ置く（同期・公開されるデータには入れない）。
-import { esc } from './util.js?v=5859a8fbe8';
+import { esc } from './util.js?v=71945be40f';
 
 const SDK_URL = 'https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.6.0/+esm';
 const KEY = 'toeic.aiKey';
