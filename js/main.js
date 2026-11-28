@@ -1,11 +1,12 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=71945be40f';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=71945be40f';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=71945be40f';
-import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=71945be40f';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=71945be40f';
-import { part2View, partSwitcher } from './part2.js?v=71945be40f';
-import { part34View } from './part34.js?v=71945be40f';
-import { trendCard, bindTrend } from './trend.js?v=71945be40f';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=2abfc6a55f';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=2abfc6a55f';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=2abfc6a55f';
+import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=2abfc6a55f';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=2abfc6a55f';
+import { part2View, partSwitcher } from './part2.js?v=2abfc6a55f';
+import { part34View } from './part34.js?v=2abfc6a55f';
+import { part7View } from './part7.js?v=2abfc6a55f';
+import { trendCard, bindTrend } from './trend.js?v=2abfc6a55f';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -20,6 +21,7 @@ const routes = [
   [/^#\/settings$/, settings], [/^#\/more$/, more],
   [/^#\/p2(?:\/(.*))?$/, part2View], // Part 2（web/js/part2.js）
   [/^#\/p34(?:\/(.*))?$/, part34View], // Part 3・4（web/js/part34.js）
+  [/^#\/p7(?:\/(.*))?$/, part7View], // Part 7（web/js/part7.js）
 ];
 
 async function route() {
@@ -214,6 +216,7 @@ function session(root) {
 function questionDetail(root, params, id) {
   if (/^p2-\d+/.test(id)) return location.replace('#/p2/q/' + id.match(/^p2-\d+/)[0]); // 単語帳の出典が Part 2 の問題
   if (/^p[34]-\d-\d+/.test(id)) return location.replace('#/p34/q/' + id.match(/^p[34]-\d-\d+/)[0]); // Part 3・4
+  if (/^p7-/.test(id)) return location.replace('#/p7/q/' + decodeURIComponent(id).split('#')[0].replace(/-[A-D]$/, '')); // Part 7
   const q = store.byId.get(decodeURIComponent(id));
   if (!q) { root.innerHTML = '<div class="card">問題が見つかりません</div>'; return; }
   const s = { ids: [q.id], i: 0, mode: 'practice', title: '問題', id: 'q' + Date.now().toString(36), results: {} };
@@ -583,6 +586,7 @@ function examRun(root) {
 async function examResult(root, params, id) {
   if (String(id).startsWith('p2')) return location.replace('#/p2/mock/result/' + id);
   if (String(id).startsWith('p34')) return location.replace('#/p34/mock/result/' + id);
+  if (String(id).startsWith('p7')) return location.replace('#/p7/mock/result/' + id);
   const ex = (await api('exams')).find((e) => e.id === id);
   if (!ex) { root.innerHTML = '<div class="card">結果が見つかりません</div>'; return; }
   const total = ex.times.reduce((a, b) => a + b, 0);

@@ -274,7 +274,7 @@ function dueWords(limit = 30) {
 function dashboard() {
   const today = now().slice(0, 10);
   const one = (sql, a) => q(sql, a)[0];
-  const A = "(SELECT * FROM attempts WHERE qid NOT LIKE 'p2-%' AND qid NOT LIKE 'p3-%' AND qid NOT LIKE 'p4-%')"; // Part 2・3・4 の解答はそれぞれの画面で集計
+  const A = "(SELECT * FROM attempts WHERE qid NOT LIKE 'p2-%' AND qid NOT LIKE 'p3-%' AND qid NOT LIKE 'p4-%' AND qid NOT LIKE 'p7-%')"; // Part 2・3・4・7 の解答はそれぞれの画面で集計
   const days = [];
   for (let i = 29; i >= 0; i--) days.push(iso(new Date(Date.now() - i * 86400000)).slice(0, 10));
   const byDay = Object.fromEntries(q(`SELECT substr(at,1,10) d, count(*) n, sum(correct) ok, count(distinct qid) q FROM ${A} WHERE at>=? GROUP BY d`, [days[0]]).map((r) => [r.d, r]));
