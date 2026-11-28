@@ -1,12 +1,12 @@
 // Part 3・4（会話問題・説明文問題）アプリ。教材: 『解きまくれ！リスニングドリル TOEIC L&R TEST PART 3&4』（TEST 1〜8）
 // 1 セット = 音声 1 本（会話・トーク）＋設問 3 問。学習記録は共通の attempts / qstate / exams に
 // qid = "p3-<TEST>-<設問番号3桁>" / "p4-…"、模試の id = "p34…" で保存（端末間同期もそのまま）
-import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=5b0b408254';
-import { STATIC, fetchDec, resolveUrl, hydrateImages } from './static.js?v=5b0b408254';
-import { stop as stopSpeech } from './audio.js?v=5b0b408254';
-import { markRegistered } from './words.js?v=5b0b408254';
-import { trendCard, bindTrend } from './trend.js?v=5b0b408254';
-import { partSwitcher } from './part2.js?v=5b0b408254';
+import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=e589904659';
+import { STATIC, fetchDec, resolveUrl, hydrateImages } from './static.js?v=e589904659';
+import { stop as stopSpeech } from './audio.js?v=e589904659';
+import { markRegistered } from './words.js?v=e589904659';
+import { trendCard, bindTrend } from './trend.js?v=e589904659';
+import { partSwitcher } from './part2.js?v=e589904659';
 
 const L4 = ['A', 'B', 'C', 'D'];
 export const P34_TOTAL = 552;

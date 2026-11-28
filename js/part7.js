@@ -1,16 +1,16 @@
 // Part 7（読解）アプリ。教材: 『極めろ！リーディング解答力 TOEIC L&R TEST PART 7』（data/part7/kiwamero7.json）
 // 1 画面 = 1 セット（文書 + 設問 2〜5 問）。学習記録は Part 5 と同じ attempts / qstate / exams に qid = "p7-<章><セクション>-<番号>" で保存
-import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=5b0b408254';
-import { STATIC, fetchDec, hydrateImages } from './static.js?v=5b0b408254';
-import { stop as stopSpeech, speak, playSequence } from './audio.js?v=5b0b408254';
-import { markRegistered } from './words.js?v=5b0b408254';
-import { trendCard, bindTrend } from './trend.js?v=5b0b408254';
+import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=e589904659';
+import { STATIC, fetchDec, hydrateImages } from './static.js?v=e589904659';
+import { stop as stopSpeech, speak, playSequence } from './audio.js?v=e589904659';
+import { markRegistered } from './words.js?v=e589904659';
+import { trendCard, bindTrend } from './trend.js?v=e589904659';
 
-export const P7_TOTAL = 125; // Chapter 1〜3（データを増やしたら更新）
+export const P7_TOTAL = 423; // Chapter 1〜9（データを増やしたら更新）
 const L = ['A', 'B', 'C', 'D'];
 const CIRC = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵';
 const TYPES = ['目的・テーマ', '詳細', '正しい情報', 'NOT問題', '推測', '同義語', '発言の意図', '文挿入位置'];
-const SECS = { c1: 'チャレンジ', c2: 'チャレンジ', r: '練習問題', m: 'まとめ問題', f: '総まとめ' };
+const SECS = { c1: 'チャレンジ', c2: 'チャレンジ', c3: 'チャレンジ', c4: 'チャレンジ', r: '練習問題', m: 'まとめ問題' };
 const P7 = { loaded: false, material: null, sets: [], questions: [], setById: new Map(), qById: new Map() };
 const SESSION_KEY = 'p7session', MOCK_KEY = 'p7mock';
 let tick = null;
@@ -139,7 +139,7 @@ async function home(root) {
       <div>
         <div class="p7-kicker">PART 7 ・ READING COMPREHENSION</div>
         <h1>全文を読んで、根拠で解く。</h1>
-        <p>『極めろ！リーディング解答力』Chapter 1〜3（${P7.sets.length}セット・${qs.length}問）。目安時間つきで解き、根拠の文・1文ずつの和訳・語句まで確認します。</p>
+        <p>『極めろ！リーディング解答力』Chapter 1〜9（${P7.sets.length}セット・${qs.length}問）。目安時間つきで解き、根拠の文・1文ずつの和訳・語句まで確認します。</p>
         <div class="row gap">
           ${next ? `<button class="btn p7-go" id="goNext">▶ 続きから（${esc(secLabel(next))} ${qRange(next)}〜 3セット）</button>` : ''}
           ${wrongSets.length || unsureSets.length ? `<button class="btn p7-ghost" id="goWeak">間違い・自信なし ${new Set([...wrongSets, ...unsureSets]).size}セット</button>` : ''}
@@ -253,7 +253,9 @@ function renderSet(root, s, opt = {}) {
   if (!answered) { const k = res.choices.findIndex((c) => c == null); if (k >= 0 && !opt.focusQ) focus = k; }
   const evMode = !answered && !mock && store.local.p7ev;
   const showJa = answered && store.local.p7ja;
-  const orig = !!store.local.p7orig;
+  // 本文を取り出せなかったセット・文挿入位置問題（[1]〜[4] の印は原本にしかない）は、解く間は原本で
+  const needOrig = !set.sentences.length || (!answered && set.qs.some((q) => q.type === '文挿入位置'));
+  const orig = !!store.local.p7orig || needOrig;
   const save = () => putS(s, mock ? MOCK_KEY : SESSION_KEY);
   root.innerHTML = `
     ${opt.single ? subnav('-') : ''}
@@ -268,7 +270,7 @@ function renderSet(root, s, opt = {}) {
         <div class="p7-doc-head">
           <span class="small muted">${esc(set.intro || '')}</span><span class="spacer"></span>
           ${answered ? `<button class="chip ${showJa ? 'on' : ''}" id="ja" title="和訳 (J)">和訳</button><a class="chip" href="#/p7/read/${set.id}">精読モード</a>` : ''}
-          <button class="chip ${orig ? 'on' : ''}" id="orig" title="原本の問題ページ (O)">原本</button>
+          ${needOrig ? `<span class="small muted">${set.sentences.length ? '文挿入位置の問題があるため原本で表示' : '原本で表示'}</span>` : `<button class="chip ${orig ? 'on' : ''}" id="orig" title="原本の問題ページ (O)">原本</button>`}
         </div>
         ${evMode ? '<div class="p7-evhint small">根拠タップ: 設問を選んでから、根拠だと思う文をタップ</div>' : ''}
         ${orig ? set.problemPages.map((p) => `<img class="p7-page" data-enc="/crops/part7/${p}" alt="原本の問題ページ">`).join('')
@@ -496,7 +498,7 @@ function reader(root, sid) {
 async function mockList(root) {
   const exams = (await api('exams').catch(() => [])).filter((e) => String(e.id).startsWith('p7'));
   const chs = [...new Set(P7.sets.map((s) => s.chapter))];
-  const opts = chs.map((c) => { const ss = P7.sets.filter((s) => s.chapter === c && s.section === 'm'); return { key: `ch${c}`, title: `Chapter ${c} まとめ問題`, sub: P7.material.chapters[c], ss }; }).filter((o) => o.ss.length);
+  const opts = chs.map((c) => { const ss = P7.sets.filter((s) => s.chapter === c && s.section === 'm'); return { key: `ch${c}`, title: c === 9 ? 'Chapter 9 総まとめ問題' : `Chapter ${c} まとめ問題`, sub: P7.material.chapters[c], ss }; }).filter((o) => o.ss.length);
   root.innerHTML = `
     ${subnav('mock')}
     <div class="page-head"><h1>Part 7 模試</h1></div>
