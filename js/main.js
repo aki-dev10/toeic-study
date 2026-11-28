@@ -1,9 +1,9 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=43a74e9663';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=43a74e9663';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=43a74e9663';
-import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=43a74e9663';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=43a74e9663';
-import { part2View, partSwitcher } from './part2.js?v=43a74e9663';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=7a9aa467cc';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=7a9aa467cc';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=7a9aa467cc';
+import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=7a9aa467cc';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=7a9aa467cc';
+import { part2View, partSwitcher } from './part2.js?v=7a9aa467cc';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作

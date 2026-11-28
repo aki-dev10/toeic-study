@@ -1,9 +1,9 @@
 // Part 2（応答問題）アプリ。教材: 『TOEIC L&R テスト Part 2 応答問題 でる200問』
 // 学習記録は Part 5 と同じ attempts / qstate / exams（qid = "p2-<通し番号>"）に保存するので、端末間同期もそのまま効く
-import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=43a74e9663';
-import { STATIC, fetchDec, resolveUrl, hydrateImages } from './static.js?v=43a74e9663';
-import { stop as stopSpeech } from './audio.js?v=43a74e9663';
-import { markRegistered } from './words.js?v=43a74e9663';
+import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=7a9aa467cc';
+import { STATIC, fetchDec, resolveUrl, hydrateImages } from './static.js?v=7a9aa467cc';
+import { stop as stopSpeech } from './audio.js?v=7a9aa467cc';
+import { markRegistered } from './words.js?v=7a9aa467cc';
 
 const L3 = ['A', 'B', 'C'];
 const TYPES = ['WH疑問文', 'Yes/No疑問文', '平叙文', '否定・付加疑問文', '提案・依頼・勧誘・申し出', '選択疑問文'];
@@ -220,7 +220,7 @@ function practice(root, params) {
       <label>出題数<input name="count" type="number" min="0" value="${esc(f.count)}" placeholder="0=すべて"></label>
     </div>
     <div class="row gap"><button class="btn primary" type="submit">開始</button><span class="muted small" id="cnt"></span></div></form>
-    <div class="card small muted">操作: <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd>（または <kbd>A</kbd><kbd>B</kbd><kbd>C</kbd>）解答 ・ <kbd>Space</kbd> 再生/停止 ・ <kbd>R</kbd> 最初から ・ <kbd>Enter</kbd> 次へ ・ <kbd>←</kbd> 前 ・ <kbd>S</kbd> スクリプト表示 ・ 英単語クリックで辞書と単語帳登録</div>`;
+    <div class="card small muted">操作: <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd>（または <kbd>A</kbd><kbd>B</kbd><kbd>C</kbd>）解答 ・ <kbd>Space</kbd> 再生/停止 ・ <kbd>S</kbd>（または <kbd>R</kbd>）最初から ・ <kbd>Enter</kbd> 次へ ・ <kbd>←</kbd> 前 ・ <kbd>T</kbd> スクリプト表示 ・ 英単語クリックで辞書と単語帳登録</div>`;
   const form = $('#pf', root);
   const read = () => Object.fromEntries($$('select, input', form).map((e) => [e.name, e.value]));
   const upd = () => { $('#cnt', root).textContent = `該当 ${filter({ ...read(), count: 0 }).length} 問`; };
@@ -262,10 +262,10 @@ function renderQ(root, s, opt = {}) {
         <div class="p2-pmain">
           <div class="p2-track"><div id="trackFill"></div></div>
           <div class="row gap small">
-            <button class="btn sm" id="replay" title="最初から (R)">↺ 最初から</button>
+            <button class="btn sm" id="replay" title="最初から (S / R)">↺ 最初から <kbd>S</kbd></button>
             <label class="muted">速度 <select id="rate">${[0.8, 0.9, 1, 1.1, 1.2, 1.35].map((r) => `<option value="${r}" ${(store.local.p2rate || 1) == r ? 'selected' : ''}>${r}x</option>`).join('')}</select></label>
             <label class="muted"><input type="checkbox" id="auto" ${store.local.p2auto !== false ? 'checked' : ''}> 自動再生</label>
-            ${answered ? '' : `<label class="muted"><input type="checkbox" id="scr" ${showScript ? 'checked' : ''}> 解答前もスクリプト</label>`}
+            ${answered ? '' : `<label class="muted"><input type="checkbox" id="scr" ${showScript ? 'checked' : ''}> 解答前もスクリプト (T)</label>`}
           </div>
         </div>
       </div>
@@ -334,13 +334,14 @@ function renderQ(root, s, opt = {}) {
   $('#next', root)?.addEventListener('click', () => go(1));
   $('#bm', root).onclick = () => bookmark(q, root);
   root._keys = (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (!answered && ['1', '2', '3', 'a', 'b', 'c'].includes(k) && !(k === 'b' && e.shiftKey)) {
       e.preventDefault(); return answer(['1', 'a'].includes(k) ? 0 : ['2', 'b'].includes(k) ? 1 : 2);
     }
     if (e.code === 'Space') { e.preventDefault(); toggle(); }
-    else if (k === 'r') playQ(q, 0);
-    else if (k === 's' && !answered) $('#scr', root)?.click();
+    else if (k === 's' || k === 'r') { e.preventDefault(); playQ(q, 0); }
+    else if (k === 't' && !answered) $('#scr', root)?.click();
     else if (k === 'b' && answered) bookmark(q, root);
     else if (e.key === 'Enter' && !opt.single) { e.preventDefault(); go(1); }
     else if (e.key === 'ArrowRight' && !opt.single) go(1);
