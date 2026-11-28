@@ -1,10 +1,10 @@
 // Part 7（読解）アプリ。教材: 『極めろ！リーディング解答力 TOEIC L&R TEST PART 7』（data/part7/kiwamero7.json）
 // 1 画面 = 1 セット（文書 + 設問 2〜5 問）。学習記録は Part 5 と同じ attempts / qstate / exams に qid = "p7-<章><セクション>-<番号>" で保存
-import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=2abfc6a55f';
-import { STATIC, fetchDec, hydrateImages } from './static.js?v=2abfc6a55f';
-import { stop as stopSpeech, speak, playSequence } from './audio.js?v=2abfc6a55f';
-import { markRegistered } from './words.js?v=2abfc6a55f';
-import { trendCard, bindTrend } from './trend.js?v=2abfc6a55f';
+import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=5b0b408254';
+import { STATIC, fetchDec, hydrateImages } from './static.js?v=5b0b408254';
+import { stop as stopSpeech, speak, playSequence } from './audio.js?v=5b0b408254';
+import { markRegistered } from './words.js?v=5b0b408254';
+import { trendCard, bindTrend } from './trend.js?v=5b0b408254';
 
 export const P7_TOTAL = 125; // Chapter 1〜3（データを増やしたら更新）
 const L = ['A', 'B', 'C', 'D'];
@@ -237,7 +237,7 @@ function passageHtml(set, o) {
   return paras.map((p) => `<p>${p.map((x) => {
     const tags = evid.get(x.n) || [];
     const picked = o.ev && Object.values(o.ev).some((a) => a.includes(x.n));
-    const en = o.answered ? `<span data-src="${set.id}#${x.n}">${tokenize(x.en, { blank: false })}</span>` : esc(x.en);
+    const en = `<span data-src="${set.id}#${x.n}">${o.tap ? esc(x.en) : tokenize(x.en, { blank: false })}</span>`;
     return `<span class="p7-s ${tags.length ? 'ev' : ''} ${picked ? 'picked' : ''}" data-n="${x.n}">${o.answered ? `<b class="p7-n">${circ(x.n)}</b>` : ''}${tags.map((q) => `<em class="p7-tag" data-q="${q.id}">${q.num}(${L[q.answer]})</em>`).join('')}${en}${o.ja && x.ja ? `<span class="p7-ja">${esc(x.ja)}</span>` : ''}</span> `;
   }).join('')}</p>`).join('');
 }
@@ -263,7 +263,7 @@ function renderSet(root, s, opt = {}) {
       ${mock || res.view ? `<span class="small muted">目安 ${fmtSec(set.time * 1000)}</span>` : `<span class="p7-timer ${answered ? 'done' : ''}" id="timer" title="経過時間 / 目安"></span>`}
     </div>
     ${opt.single || mock ? '' : `<div class="progress"><div style="width:${((s.i + (answered ? 1 : 0)) / s.sids.length) * 100}%"></div></div>`}
-    <div class="p7-split">
+    <div class="p7-split ${orig ? 'orig' : 'wide'}">
       <section class="card p7-doc">
         <div class="p7-doc-head">
           <span class="small muted">${esc(set.intro || '')}</span><span class="spacer"></span>
@@ -272,7 +272,7 @@ function renderSet(root, s, opt = {}) {
         </div>
         ${evMode ? '<div class="p7-evhint small">根拠タップ: 設問を選んでから、根拠だと思う文をタップ</div>' : ''}
         ${orig ? set.problemPages.map((p) => `<img class="p7-page" data-enc="/crops/part7/${p}" alt="原本の問題ページ">`).join('')
-          : `<div class="p7-text en ${evMode ? 'tap' : ''}" id="doc">${passageHtml(set, { answered, ev: evMode || answered ? res.ev : null, ja: showJa })}</div>`}
+          : `<div class="p7-text en ${evMode ? 'tap' : ''}" id="doc">${passageHtml(set, { answered, tap: evMode, ev: evMode || answered ? res.ev : null, ja: showJa })}</div>`}
       </section>
       <section class="p7-qs">
         ${set.qs.map((q, i) => qCard(q, i, res, answered, focus, mock, evMode)).join('')}
@@ -383,10 +383,10 @@ function qCard(q, i, res, answered, focus, mock, evMode) {
       ${!answered ? `<button class="chip p7-uns ${res.unsure?.[i] ? 'on' : ''}" title="自信なし (?)">? 自信なし</button>` : ''}
       ${answered ? `<button class="icon-btn star ${st(q).bookmark ? 'on' : ''}" data-bm="${q.id}" title="ブックマーク">${st(q).bookmark ? '★' : '☆'}</button>` : ''}
     </div>
-    <div class="p7-qtext en" ${answered ? `data-src="${q.id}"` : ''}>${answered ? tokenize(q.text, { blank: false }) : esc(q.text)}</div>
+    <div class="p7-qtext en" data-src="${q.id}">${tokenize(q.text, { blank: false })}</div>
     ${answered && q.ja ? `<div class="small muted">${esc(q.ja)}</div>` : ''}
     <div class="p7-choices">${q.choices.map((c, k) => `<button class="p7-ch ${ch === k ? 'sel' : ''} ${answered && k === q.answer ? 'correct' : ''} ${answered && !res.view && ch === k && k !== q.answer ? 'wrong' : ''}" data-c="${k}" ${answered ? 'tabindex="-1"' : ''}>
-      <span class="p7-l">${L[k]}</span><span><span class="en" ${answered ? `data-src="${q.id}-${L[k]}"` : ''}>${answered ? tokenize(c, { blank: false }) : esc(c)}</span>${ja ? `<span class="p7-cja">${esc(q.choices_ja[k])}</span>` : ''}</span></button>`).join('')}</div>
+      <span class="p7-l">${L[k]}</span><span><span class="en" data-src="${q.id}-${L[k]}">${answered ? tokenize(c, { blank: false }) : esc(c)}</span>${ja ? `<span class="p7-cja">${esc(q.choices_ja[k])}</span>` : ''}</span></button>`).join('')}</div>
     ${answered ? `<div class="p7-ex">
       ${q.evidence?.length ? `<button class="chip" data-flash="${q.id}">根拠 ${q.evidence.map(circ).join('')} を本文で見る</button>` : ''}
       ${yourEv?.length && q.evidence?.length ? `<span class="small ${yourEv.some((n) => q.evidence.includes(n)) ? 'ok' : 'ng'}">あなたの根拠 ${yourEv.map(circ).join('')} ${yourEv.some((n) => q.evidence.includes(n)) ? '○ 一致' : '× ずれ'}</span>` : ''}
@@ -609,6 +609,7 @@ function injectCss() {
 .p7-map { display: flex; flex-wrap: wrap; gap: 5px; } .p7-map a { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; font-size: 11px; color: var(--muted); }
 .p7-chtbl td { vertical-align: middle; } .p7-ch { width: 150px; }
 .p7-split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+main:has(.p7-split.wide) { max-width: 1360px; } .p7-split.wide { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
 .p7-doc { position: sticky; top: 64px; max-height: calc(100vh - 80px); overflow: auto; }
 .p7-doc-head { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
 .chip.on { background: #fde68a; border-color: #d97706; color: #3b1d06; }

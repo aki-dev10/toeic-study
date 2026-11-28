@@ -1,12 +1,12 @@
 // Part 2（応答問題）アプリ。教材: 『TOEIC L&R テスト Part 2 応答問題 でる200問』
 // 学習記録は Part 5 と同じ attempts / qstate / exams（qid = "p2-<通し番号>"）に保存するので、端末間同期もそのまま効く
-import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=2abfc6a55f';
-import { STATIC, fetchDec, resolveUrl, hydrateImages } from './static.js?v=2abfc6a55f';
-import { stop as stopSpeech } from './audio.js?v=2abfc6a55f';
-import { markRegistered } from './words.js?v=2abfc6a55f';
-import { trendCard, bindTrend } from './trend.js?v=2abfc6a55f';
-import { P34_TOTAL } from './part34.js?v=2abfc6a55f';
-import { P7_TOTAL } from './part7.js?v=2abfc6a55f';
+import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=5b0b408254';
+import { STATIC, fetchDec, resolveUrl, hydrateImages } from './static.js?v=5b0b408254';
+import { stop as stopSpeech } from './audio.js?v=5b0b408254';
+import { markRegistered } from './words.js?v=5b0b408254';
+import { trendCard, bindTrend } from './trend.js?v=5b0b408254';
+import { P34_TOTAL } from './part34.js?v=5b0b408254';
+import { P7_TOTAL } from './part7.js?v=5b0b408254';
 
 const L3 = ['A', 'B', 'C'];
 const TYPES = ['WH疑問文', 'Yes/No疑問文', '平叙文', '否定・付加疑問文', '提案・依頼・勧誘・申し出', '選択疑問文'];
