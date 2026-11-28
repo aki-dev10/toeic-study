@@ -1,8 +1,9 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=181d01857b';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=181d01857b';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=181d01857b';
-import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=181d01857b';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=181d01857b';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=43a74e9663';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=43a74e9663';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=43a74e9663';
+import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=43a74e9663';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=43a74e9663';
+import { part2View, partSwitcher } from './part2.js?v=43a74e9663';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -15,6 +16,7 @@ const routes = [
   [/^#\/review$/, reviewSetup], [/^#\/listen$/, listenSetup], [/^#\/listen\/run$/, listenRun],
   [/^#\/words$/, wordsView], [/^#\/words\/review$/, wordReviewView], [/^#\/words\/(\d+)$/, (r, p, id) => wordDetailView(r, id)],
   [/^#\/settings$/, settings], [/^#\/more$/, more],
+  [/^#\/p2(?:\/(.*))?$/, part2View], // Part 2（web/js/part2.js）
 ];
 
 async function route() {
@@ -126,8 +128,9 @@ async function home(root) {
   const weak = cats.filter((c) => c.n >= 5 && c.rate < 80).slice(0, 3);
   const rs = resumeSession();
   const next = rs && store.byId.get(rs.ids[rs.i]);
-  const exams = await api('exams');
+  const exams = (await api('exams')).filter((e) => !String(e.id).startsWith('p2')); // Part 2 の模試は Part 2 側に表示
   root.innerHTML = `
+    ${partSwitcher('p5')}
     <section class="hero card">
       <div><h1>今日も1問から。</h1><p class="muted">解く → 聞く → 分からない単語を登録 → 復習</p></div>
       <div class="hero-actions">
@@ -240,6 +243,7 @@ function session(root) {
 }
 
 function questionDetail(root, params, id) {
+  if (/^p2-\d+/.test(id)) return location.replace('#/p2/q/' + id.match(/^p2-\d+/)[0]); // 単語帳の出典が Part 2 の問題
   const q = store.byId.get(decodeURIComponent(id));
   if (!q) { root.innerHTML = '<div class="card">問題が見つかりません</div>'; return; }
   const s = { ids: [q.id], i: 0, mode: 'practice', title: '問題', id: 'q' + Date.now().toString(36), results: {} };
@@ -607,6 +611,7 @@ function examRun(root) {
   draw();
 }
 async function examResult(root, params, id) {
+  if (String(id).startsWith('p2')) return location.replace('#/p2/mock/result/' + id);
   const ex = (await api('exams')).find((e) => e.id === id);
   if (!ex) { root.innerHTML = '<div class="card">結果が見つかりません</div>'; return; }
   const total = ex.times.reduce((a, b) => a + b, 0);
