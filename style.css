@@ -85,6 +85,7 @@ label.check { display: block; margin: 8px 0; }
 .hero { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .hero p { margin: 4px 0 0; }
 .hero-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.summary-line { margin: 0 4px 14px; } .summary-line b { color: var(--text, inherit); font-size: 15px; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
 .stats-grid .card { margin: 0; padding: 14px 16px; }
 .stat .label { font-size: 12px; color: var(--muted); }

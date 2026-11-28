@@ -1,9 +1,10 @@
 // Part 2（応答問題）アプリ。教材: 『TOEIC L&R テスト Part 2 応答問題 でる200問』
 // 学習記録は Part 5 と同じ attempts / qstate / exams（qid = "p2-<通し番号>"）に保存するので、端末間同期もそのまま効く
-import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=7a9aa467cc';
-import { STATIC, fetchDec, resolveUrl, hydrateImages } from './static.js?v=7a9aa467cc';
-import { stop as stopSpeech } from './audio.js?v=7a9aa467cc';
-import { markRegistered } from './words.js?v=7a9aa467cc';
+import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=5859a8fbe8';
+import { STATIC, fetchDec, resolveUrl, hydrateImages } from './static.js?v=5859a8fbe8';
+import { stop as stopSpeech } from './audio.js?v=5859a8fbe8';
+import { markRegistered } from './words.js?v=5859a8fbe8';
+import { trendCard, bindTrend } from './trend.js?v=5859a8fbe8';
 
 const L3 = ['A', 'B', 'C'];
 const TYPES = ['WH疑問文', 'Yes/No疑問文', '平叙文', '否定・付加疑問文', '提案・依頼・勧誘・申し出', '選択疑問文'];
@@ -149,6 +150,7 @@ async function home(root) {
     return { t, total: xs.length, done: d.length, rate: pct(o, n), n };
   });
   const exams = (await api('exams').catch(() => [])).filter((e) => String(e.id).startsWith('p2'));
+  const dash = await api('dashboard').catch(() => null);
   root.innerHTML = `
     ${partSwitcher('p2')}
     ${subnav('')}
@@ -165,31 +167,27 @@ async function home(root) {
       </div>
       <div class="p2-wave" aria-hidden="true">${Array.from({ length: 28 }, (_, i) => `<i style="--h:${18 + Math.round(Math.abs(Math.sin(i * 1.7)) * 62)}%;--d:${(i % 7) * 0.12}s"></i>`).join('')}</div>
     </section>
-    <div class="stats-grid">
-      ${stat('解答済み', `${done.length}<small>/ ${qs.length}問</small>`, `今日 ${todayN}問`)}
-      ${stat('初回正答率', `${pct(firstOk, done.length)}<small>%</small>`, `${done.length}問`)}
-      ${stat('全体の正答率', `${pct(ok, tot)}<small>%</small>`, `解答 ${tot}回`)}
-      ${stat('要復習', `${wrongNow}<small>問</small>`, '直近で間違えた問題')}
-    </div>
+    <div class="summary-line small muted">今日 <b>${todayN}</b>問 ・ 解答済み <b>${done.length}</b> / ${qs.length}問 ・ 初回正答率 <b>${pct(firstOk, done.length)}%</b> ・ 要復習 <b>${wrongNow}</b>問</div>
     <div class="two-col">
+      ${trendCard()}
       <section class="card"><h2>問題タイプ別</h2>
         <table class="tbl">${byType.map((b) => `<tr><td><a href="#/p2/practice?type=${encodeURIComponent(b.t)}">${esc(b.t)}</a></td><td class="small muted">${b.done}/${b.total}</td>
           <td><div class="bar"><span style="width:${b.rate}%" class="${b.n && b.rate < 70 ? 'low' : ''}"></span><em>${b.n ? b.rate + '%' : '-'}</em></div></td></tr>`).join('')}</table>
       </section>
-      <section class="card"><h2>模試</h2>
+    </div>
+    <section class="card"><h2>模試</h2>
         ${exams.length ? `<table class="tbl">${exams.slice(0, 6).map((e) => `<tr><td class="small">${fmtDate(e.finished)}</td><td>${esc(e.title.replace('Part 2 ', ''))}</td><td><b>${e.score}/${e.total}</b></td><td><a href="#/p2/mock/result/${encodeURIComponent(e.id)}">結果</a></td></tr>`).join('')}</table>`
           : '<p class="muted small">本番と同じ 25問・連続再生の模試が 10 セットあります。</p>'}
         <a class="btn sm" href="#/p2/mock">模試を選ぶ</a>
       </section>
-    </div>
     <section class="card"><h2>全 ${qs.length} 問マップ</h2>
       <div class="legend small"><span class="lg2 none"></span>未回答 <span class="lg2 good"></span>正解 <span class="lg2 bad"></span>直近で不正解 <span class="lg2 bm"></span>ブックマーク</div>
       ${mapGrid(qs)}
     </section>`;
+  if (dash) bindTrend(root, dash.days); else $('#chart', root).closest('.card').remove();
   $('#goNext', root)?.addEventListener('click', () => startSession(qs.filter((q) => !st(q).n && !q.set).slice(0, 10), '続きから'));
   $('#goWrong', root)?.addEventListener('click', () => startSession(qs.filter((q) => st(q).n && st(q).latest === 0), '間違えた問題'));
 }
-const stat = (label, val, sub) => `<div class="card stat"><div class="label">${label}</div><div class="val">${val}</div><div class="sub small muted">${sub}</div></div>`;
 function mapGrid(qs) {
   const groups = [];
   for (const q of qs) {

@@ -278,6 +278,10 @@ function dashboard() {
   const days = [];
   for (let i = 29; i >= 0; i--) days.push(iso(new Date(Date.now() - i * 86400000)).slice(0, 10));
   const byDay = Object.fromEntries(q(`SELECT substr(at,1,10) d, count(*) n, sum(correct) ok, count(distinct qid) q FROM ${A} WHERE at>=? GROUP BY d`, [days[0]]).map((r) => [r.d, r]));
+  // 学習推移は Part 別（qid の接頭辞 p2- / p3- / p4- / p7-、それ以外は Part 5）
+  const partDay = {};
+  q(`SELECT substr(at,1,10) d, CASE WHEN qid LIKE 'p2-%' THEN 'p2' WHEN qid LIKE 'p3-%' OR qid LIKE 'p4-%' THEN 'p34' WHEN qid LIKE 'p7-%' THEN 'p7' ELSE 'p5' END p, count(*) n
+     FROM attempts WHERE at>=? GROUP BY d, p`, [days[0]]).forEach((r) => ((partDay[r.d] ||= {})[r.p] = r.n));
   const wrDay = Object.fromEntries(q('SELECT substr(at,1,10) d, count(*) n FROM word_reviews WHERE at>=? GROUP BY d', [days[0]]).map((r) => [r.d, r.n]));
   const waDay = Object.fromEntries(q('SELECT substr(created_at,1,10) d, count(*) n FROM words WHERE created_at>=? GROUP BY d', [days[0]]).map((r) => [r.d, r.n]));
   const first = one(`SELECT count(*) n, sum(correct) ok FROM ${A} a WHERE id=(SELECT min(id) FROM ${A} b WHERE b.qid=a.qid)`);
@@ -303,7 +307,7 @@ function dashboard() {
       due: one('SELECT count(*) n FROM words WHERE due_at IS NULL OR due_at<=?', [now()]).n,
       week: one('SELECT count(*) n FROM words WHERE created_at>=?', [iso(new Date(Date.now() - 7 * 86400000))]).n,
     },
-    days: days.map((d) => ({ d, n: byDay[d]?.n || 0, ok: byDay[d]?.ok || 0, wr: wrDay[d] || 0, wa: waDay[d] || 0 })),
+    days: days.map((d) => ({ d, n: byDay[d]?.n || 0, ok: byDay[d]?.ok || 0, wr: wrDay[d] || 0, parts: partDay[d] || {}, wa: waDay[d] || 0 })),
   };
 }
 function backup() {

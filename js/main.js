@@ -1,9 +1,10 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=7a9aa467cc';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=7a9aa467cc';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=7a9aa467cc';
-import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=7a9aa467cc';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=7a9aa467cc';
-import { part2View, partSwitcher } from './part2.js?v=7a9aa467cc';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=5859a8fbe8';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=5859a8fbe8';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=5859a8fbe8';
+import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=5859a8fbe8';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=5859a8fbe8';
+import { part2View, partSwitcher } from './part2.js?v=5859a8fbe8';
+import { trendCard, bindTrend } from './trend.js?v=5859a8fbe8';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作
@@ -139,50 +140,16 @@ async function home(root) {
         <a class="btn" href="#/review">苦手問題を復習</a>
       </div>
     </section>
-    <div class="stats-grid">
-      ${stat('今日の学習', `${d.today.questions}<small>問</small>`, `正解 ${d.today.correct} / 解答 ${d.today.attempts}`)}
-      ${stat('累計', `${d.total.questions}<small>/ ${qs.length}問</small>`, `解答 ${d.total.attempts}回`)}
-      ${stat('初回正答率', `${pct(d.firstRate[1], d.firstRate[0])}<small>%</small>`, `${d.firstRate[0]}問`)}
-      ${stat('復習後の正答率', `${pct(d.laterRate[1], d.laterRate[0])}<small>%</small>`, `2回目以降 ${d.laterRate[0]}回`)}
-      ${stat('平均解答時間', fmtSec(d.total.avgMs), '目標 20〜30秒')}
-      ${stat('単語帳', `${d.words.total}<small>語</small>`, `今週の新規 ${d.words.week} ・ 未習得 ${d.words.unmastered}`)}
-      ${stat('今日の単語復習', `${d.today.wordReviews}<small>回</small>`, `復習待ち ${d.words.due}語 ・ 今日登録 ${d.today.newWords}`)}
-      ${stat('習得済み単語', `${d.words.mastered}<small>語</small>`, '復習間隔60日以上')}
-    </div>
+    <div class="summary-line small muted">今日 <b>${d.today.questions}</b>問 ・ 累計 <b>${d.total.questions}</b> / ${qs.length}問 ・ 初回正答率 <b>${pct(d.firstRate[1], d.firstRate[0])}%</b> ・ 単語帳 <b>${d.words.total}</b>語</div>
     <div class="two-col">
-      <section class="card"><h2>学習推移</h2>
-        <div class="seg" id="rangeSeg"><button data-r="7" class="on">7日</button><button data-r="30">30日</button></div>
-        <div id="chart"></div>
-        <div class="legend small"><span class="lg q"></span>解いた問題 <span class="lg ok"></span>正解 <span class="lg w"></span>単語復習</div>
-      </section>
+      ${trendCard()}
       <section class="card"><h2>文法カテゴリ別 正答率</h2>
         ${cats.length ? `<table class="tbl"><tr><th>カテゴリ</th><th>問題</th><th>正答率</th><th>平均</th></tr>${cats.map((c) => `<tr><td>${esc(c.k)}</td><td>${c.q}</td><td><div class="bar"><span style="width:${c.rate}%" class="${c.rate < 70 ? 'low' : ''}"></span><em>${c.rate}%</em></div></td><td>${fmtSec(c.ms / c.q)}</td></tr>`).join('')}</table>` : '<p class="muted">まだデータがありません。</p>'}
         ${weak.length ? `<div class="weak"><b>苦手分野:</b> ${weak.map((w) => `<a href="#/practice?cat=${encodeURIComponent(w.k)}">${esc(w.k)}（${w.rate}%）</a>`).join('、')}</div>` : ''}
       </section>
     </div>
-    <section class="card"><h2>進捗</h2>
-      <div class="progress big"><div style="width:${pct(answered, qs.length)}%"></div></div>
-      <div class="small muted">${answered} / ${qs.length} 問に解答済み</div>
-      ${exams.length ? `<h3>最近の模試</h3><table class="tbl">${exams.slice(0, 5).map((e) => `<tr><td>${fmtDate(e.finished)}</td><td>${esc(e.title)}</td><td><b>${e.score}/${e.total}</b></td><td><a href="#/exam/result/${e.id}">結果</a></td></tr>`).join('')}</table>` : ''}
-    </section>`;
-  const drawChart = (n) => { $('#chart', root).innerHTML = chart(d.days.slice(-n)); };
-  drawChart(7);
-  $('#rangeSeg', root).onclick = (e) => { const b = e.target.closest('button'); if (!b) return; $$('#rangeSeg button', root).forEach((x) => x.classList.toggle('on', x === b)); drawChart(+b.dataset.r); };
-}
-const stat = (label, val, sub) => `<div class="card stat"><div class="label">${label}</div><div class="val">${val}</div><div class="sub small muted">${sub}</div></div>`;
-
-function chart(days) {
-  const W = 600, H = 160, pad = 22, bw = (W - pad * 2) / days.length;
-  const max = Math.max(5, ...days.map((d) => Math.max(d.n, d.wr)));
-  const y = (v) => H - pad - (v / max) * (H - pad * 2);
-  const bars = days.map((d, i) => {
-    const x = pad + i * bw;
-    return `<rect class="q" x="${x + bw * 0.12}" y="${y(d.n)}" width="${bw * 0.38}" height="${H - pad - y(d.n)}"><title>${d.d} 解答${d.n} 正解${d.ok}</title></rect>
-      <rect class="ok" x="${x + bw * 0.12}" y="${y(d.ok)}" width="${bw * 0.38}" height="${H - pad - y(d.ok)}"></rect>
-      <rect class="w" x="${x + bw * 0.52}" y="${y(d.wr)}" width="${bw * 0.34}" height="${H - pad - y(d.wr)}"><title>${d.d} 単語復習${d.wr}</title></rect>
-      ${days.length <= 7 || i % 5 === 0 ? `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${d.d.slice(5).replace('-', '/')}</text>` : ''}`;
-  }).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="学習推移"><line x1="${pad}" x2="${W - pad}" y1="${H - pad}" y2="${H - pad}" class="axis"/>${bars}<text x="${pad}" y="12" class="axis-t">${max}</text></svg>`;
+    ${exams.length ? `<section class="card"><h2>最近の模試</h2><table class="tbl">${exams.slice(0, 5).map((e) => `<tr><td>${fmtDate(e.finished)}</td><td>${esc(e.title)}</td><td><b>${e.score}/${e.total}</b></td><td><a href="#/exam/result/${e.id}">結果</a></td></tr>`).join('')}</table></section>` : ''}`;
+  bindTrend(root, d.days);
 }
 
 // ================= 演習：条件設定 =================
