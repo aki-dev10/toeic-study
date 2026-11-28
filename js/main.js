@@ -1,12 +1,12 @@
-import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=e589904659';
-import { STATIC, unlock, hydrateImages, pull } from './static.js?v=e589904659';
-import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=e589904659';
-import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=e589904659';
-import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=e589904659';
-import { part2View, partSwitcher } from './part2.js?v=e589904659';
-import { part34View } from './part34.js?v=e589904659';
-import { part7View } from './part7.js?v=e589904659';
-import { trendCard, bindTrend } from './trend.js?v=e589904659';
+import { $, $$, esc, api, store, loadAll, saveLocal, toast, fmtSec, pct, shuffle, tokenize, completeHtml, questionLabel, LETTERS, fmtDate } from './util.js?v=d3a346ff49';
+import { STATIC, unlock, hydrateImages, pull } from './static.js?v=d3a346ff49';
+import { playSequence, stop, blankSegments, completeItems, questionItems, usesBookBlank, onAudioState, isPlaying, voices, pickVoice, speak, audioDuration } from './audio.js?v=d3a346ff49';
+import { aiKey, setAiKey, ask, questionPrompt, toHtml, warm, MODELS, DEFAULT_MODEL } from './claude.js?v=d3a346ff49';
+import { initPopup, closePopup, popupOpen, markRegistered, wordsView, wordDetailView, wordReviewView } from './words.js?v=d3a346ff49';
+import { part2View, partSwitcher } from './part2.js?v=d3a346ff49';
+import { part34View } from './part34.js?v=d3a346ff49';
+import { part7View } from './part7.js?v=d3a346ff49';
+import { trendCard, bindTrend } from './trend.js?v=d3a346ff49';
 
 const app = $('#app');
 let keyHandler = null;   // 画面ごとのキーボード操作

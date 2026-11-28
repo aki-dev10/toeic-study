@@ -1,12 +1,12 @@
 // Part 3・4（会話問題・説明文問題）アプリ。教材: 『解きまくれ！リスニングドリル TOEIC L&R TEST PART 3&4』（TEST 1〜8）
 // 1 セット = 音声 1 本（会話・トーク）＋設問 3 問。学習記録は共通の attempts / qstate / exams に
 // qid = "p3-<TEST>-<設問番号3桁>" / "p4-…"、模試の id = "p34…" で保存（端末間同期もそのまま）
-import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=e589904659';
-import { STATIC, fetchDec, resolveUrl, hydrateImages } from './static.js?v=e589904659';
-import { stop as stopSpeech } from './audio.js?v=e589904659';
-import { markRegistered } from './words.js?v=e589904659';
-import { trendCard, bindTrend } from './trend.js?v=e589904659';
-import { partSwitcher } from './part2.js?v=e589904659';
+import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=d3a346ff49';
+import { STATIC, fetchDec, resolveUrl, hydrateImages } from './static.js?v=d3a346ff49';
+import { stop as stopSpeech } from './audio.js?v=d3a346ff49';
+import { markRegistered } from './words.js?v=d3a346ff49';
+import { trendCard, bindTrend } from './trend.js?v=d3a346ff49';
+import { partSwitcher } from './part2.js?v=d3a346ff49';
 
 const L4 = ['A', 'B', 'C', 'D'];
 export const P34_TOTAL = 552;
@@ -256,7 +256,7 @@ function renderSet(root, s, opt = {}) {
         <button class="p34-play" id="play" title="再生/停止 (Space)" aria-label="再生"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" class="ring-bg"/><circle cx="24" cy="24" r="21" class="ring" id="ring"/></svg><span id="playIcon">▶</span></button>
         <div class="p34-pmain">
           <div class="p34-now small" id="now">${esc(set.intro || '')}</div>
-          <div class="p34-track"><div id="trackFill"></div></div>
+          <div class="p34-seekrow"><div class="p34-track seek" id="seek" title="クリック・ドラッグでその位置から再生"><div id="trackFill"><i></i></div></div><span class="small muted p34-time" id="ptime">0:00</span></div>
           <div class="row gap small">
             <button class="btn sm" id="replay" title="最初から (S)">↺ 最初から <kbd>S</kbd></button>
             <button class="btn sm ghost" id="playQ" title="設問の読み上げを再生">設問の読み上げ</button>
@@ -295,13 +295,17 @@ function renderSet(root, s, opt = {}) {
   markRegistered(root);
 
   // ---- 音声
-  const ring = $('#ring', root), fill = $('#trackFill', root), icon = $('#playIcon', root), now = $('#now', root);
+  const ring = $('#ring', root), fill = $('#trackFill', root), icon = $('#playIcon', root), now = $('#now', root), ptime = $('#ptime', root);
+  const tt = turnTimes(set);
+  let seeking = false;
   const CC = 2 * Math.PI * 21;
   ring.style.strokeDasharray = CC; ring.style.strokeDashoffset = CC;
   player.onTime = (t, d) => {
+    if (seeking) return;
     const r = d ? Math.min(1, t / d) : 0; ring.style.strokeDashoffset = CC * (1 - r); fill.style.width = r * 100 + '%';
+    ptime.textContent = d ? `${mmss(t)} / ${mmss(d)}` : mmss(t);
     if (player.key === set.audio.talk) {
-      let cur = -1; set.script.forEach((x, k) => { if (x.t != null && t >= x.t) cur = k; });
+      let cur = -1; tt.forEach((x, k) => { if (x != null && t >= x) cur = k; });
       $$('.p34-turn', root).forEach((el) => el.classList.toggle('now', +el.dataset.k === cur));
     }
   };
@@ -324,7 +328,25 @@ function renderSet(root, s, opt = {}) {
   $('#rate', root).onchange = (e) => { store.local.p34rate = +e.target.value; saveLocal(); if (player.a) player.a.playbackRate = store.local.p34rate; };
   $('#qread', root).onchange = (e) => { store.local.p34qread = e.target.checked; saveLocal(); };
   $('#scr', root)?.addEventListener('change', (e) => { store.local.p34script = e.target.checked; saveLocal(); renderSet(root, s, opt); });
-  $$('[data-turn]', root).forEach((b) => (b.onclick = () => { const k = +b.dataset.turn; const nx = set.script.slice(k + 1).find((x) => x.t != null); playTalk(set.script[k].t || 0, store.local.p34one ? nx?.t ?? null : null); }));
+  $$('[data-turn]', root).forEach((b) => (b.onclick = () => { const k = +b.dataset.turn; playTalk(Math.max(0, tt[k] - 0.15), store.local.p34one ? tt[k + 1] ?? null : null); }));
+  // シークバー: クリック・ドラッグした位置から再生（表示中の音声。未再生なら会話・トーク）
+  const seek = $('#seek', root);
+  const ratio = (e) => { const b = seek.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - b.left) / b.width)); };
+  const show = (r) => { fill.style.width = r * 100 + '%'; const d = player.a?.duration; if (d && ownKey()) ptime.textContent = `${mmss(r * d)} / ${mmss(d)}`; };
+  const ownKey = () => player.key === set.audio.talk || player.key === set.audio.q;
+  seek.onpointerdown = (e) => { e.preventDefault(); seeking = true; seek.setPointerCapture(e.pointerId); show(ratio(e)); };
+  seek.onpointermove = (e) => { if (seeking) show(ratio(e)); };
+  seek.onpointerup = async (e) => {
+    if (!seeking) return; seeking = false;
+    const r = ratio(e);
+    clearTimers(); $('#st', root).textContent = '';
+    if (!ownKey() || !player.a.duration) { if (!(await playTalk(0))) return; await new Promise((ok) => (player.a.duration ? ok() : player.a.addEventListener('loadedmetadata', ok, { once: true }))); }
+    else if (player.key === set.audio.talk) player.onEnded = () => { if (store.local.p34qread && !graded) playQs(); };
+    player.stopAt = null;
+    player.a.currentTime = r * player.a.duration;
+    player.a.play().catch(() => {});
+  };
+  seek.onpointercancel = () => { seeking = false; };
   $$('[data-qread]', root).forEach((b) => (b.onclick = () => { const q = P.qs.get(b.dataset.qread); const nx = qs[qs.indexOf(q) + 1]; playQs(q.t || 0, nx?.t ?? null); }));
   $('#one', root)?.addEventListener('change', (e) => { store.local.p34one = e.target.checked; saveLocal(); });
 
@@ -410,11 +432,28 @@ async function bookmark(set, root) {
   toast(on ? 'ブックマークしました' : 'ブックマークを外しました');
 }
 
+const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+// 各発話の開始秒。書き起こしと合わず時刻が無い発話は、前後の時刻を文字数の割合で補う
+function turnTimes(set) {
+  const sc = set.script, out = sc.map((x) => x.t ?? null);
+  for (let k = 0; k < sc.length; k++) {
+    if (out[k] != null) continue;
+    let a = k - 1; while (a >= 0 && sc[a].t == null) a--;
+    let b = k + 1; while (b < sc.length && sc[b].t == null) b++;
+    const ta = a >= 0 ? sc[a].t : 0;
+    if (b >= sc.length) { out[k] = ta; continue; }
+    const len = (i) => (sc[i].en || '').length;
+    let tot = 0, part = 0; for (let i = Math.max(a, 0); i < b; i++) { if (i < k) part += len(i); tot += len(i); }
+    out[k] = ta + (sc[b].t - ta) * (tot ? part / tot : 0);
+  }
+  return out;
+}
 const SPK_NAME = { W: '女性', M: '男性', W1: '女性1', W2: '女性2', M1: '男性1', M2: '男性2' };
 function scriptHtml(set, withJa = true) {
   return `<div class="p34-script">${set.script.map((t, k) => `<div class="p34-turn" data-k="${k}">
-    ${t.sp ? `<span class="p34-sp sp-${esc(t.sp[0])}" title="${esc(SPK_NAME[t.sp] || t.sp)}">${esc(t.sp)}</span>` : '<span class="p34-sp sp-N">▶</span>'}
-    <div><div class="en" data-src="${set.id}-t${k}">${tokenize(t.en)} ${withJa && t.t != null ? `<button class="icon-btn" data-turn="${k}" title="ここから再生">🔊</button>` : ''}</div>
+    <div class="p34-side">${t.sp ? `<span class="p34-sp sp-${esc(t.sp[0])}" title="${esc(SPK_NAME[t.sp] || t.sp)}">${esc(t.sp)}</span>` : '<span class="p34-sp sp-N">♪</span>'}
+      ${withJa ? `<button class="p34-tplay" data-turn="${k}" title="ここから再生" aria-label="ここから再生">▶</button>` : ''}</div>
+    <div><div class="en" data-src="${set.id}-t${k}">${tokenize(t.en)}</div>
     ${withJa && t.ja ? `<div class="ja small muted">${esc(t.ja)}</div>` : ''}</div></div>`).join('')}</div>`;
 }
 
@@ -665,6 +704,14 @@ function injectCss() {
 .p34-turn { display: grid; grid-template-columns: 34px 1fr; gap: 8px; padding: 6px; border-radius: 10px; transition: background .2s; }
 .p34-turn.now { background: rgba(109,75,216,.10); }
 .p34-turn .en { font-size: 16px; line-height: 1.7; }
+.p34-side { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.p34-tplay { width: 30px; height: 30px; border-radius: 50%; border: 1px solid ${C1}; background: var(--card); color: ${C1}; font-size: 11px; cursor: pointer; padding: 0 0 0 2px; }
+.p34-tplay:hover, .p34-turn.now .p34-tplay { background: ${C1}; color: #fff; }
+.p34-seekrow { display: flex; align-items: center; gap: 10px; } .p34-time { font-family: var(--en); white-space: nowrap; min-width: 76px; text-align: right; }
+.p34-track.seek { flex: 1; height: 8px; overflow: visible; cursor: pointer; position: relative; touch-action: none; }
+.p34-track.seek::before { content: ''; position: absolute; inset: -9px 0; }
+.p34-track.seek div { border-radius: 4px; position: relative; pointer-events: none; }
+.p34-track.seek i { position: absolute; right: -7px; top: 50%; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%; background: #fff; border: 3px solid ${C1}; box-sizing: border-box; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 .p34-sp { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: 800 12px var(--en); color: #1f1650; }
 .p34-sp.sp-W { background: #ffd6e8; } .p34-sp.sp-M { background: #c8f3e6; } .p34-sp.sp-N { background: var(--soft); color: ${C1}; }
 .p34-explain h3 { margin-top: 18px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

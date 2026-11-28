@@ -1,10 +1,10 @@
 // Part 7（読解）アプリ。教材: 『極めろ！リーディング解答力 TOEIC L&R TEST PART 7』（data/part7/kiwamero7.json）
 // 1 画面 = 1 セット（文書 + 設問 2〜5 問）。学習記録は Part 5 と同じ attempts / qstate / exams に qid = "p7-<章><セクション>-<番号>" で保存
-import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=e589904659';
-import { STATIC, fetchDec, hydrateImages } from './static.js?v=e589904659';
-import { stop as stopSpeech, speak, playSequence } from './audio.js?v=e589904659';
-import { markRegistered } from './words.js?v=e589904659';
-import { trendCard, bindTrend } from './trend.js?v=e589904659';
+import { $, $$, esc, api, store, saveLocal, toast, fmtSec, pct, shuffle, tokenize, fmtDate } from './util.js?v=d3a346ff49';
+import { STATIC, fetchDec, hydrateImages } from './static.js?v=d3a346ff49';
+import { stop as stopSpeech, speak, playSequence } from './audio.js?v=d3a346ff49';
+import { markRegistered } from './words.js?v=d3a346ff49';
+import { trendCard, bindTrend } from './trend.js?v=d3a346ff49';
 
 export const P7_TOTAL = 423; // Chapter 1〜9（データを増やしたら更新）
 const L = ['A', 'B', 'C', 'D'];
